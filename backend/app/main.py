@@ -44,6 +44,12 @@ register_error_handlers(app)
     tags=["Root Health"],
     summary="Root Service Health Check",
 )
+@app.get(
+    "/api/health",
+    response_model=ServiceHealthResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
 def root_health():
     """Returns basic service health status."""
     return HealthService.get_service_health()
@@ -56,14 +62,22 @@ def root_health():
     tags=["Root Health"],
     summary="Root Database Health Check",
 )
+@app.get(
+    "/api/health/db",
+    response_model=DatabaseHealthResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
 def root_db_health():
     """Validates PostgreSQL connectivity status and latency."""
     return HealthService.get_database_health()
 
 
-# Mount versioned API routes
+# Mount versioned API routes across all possible rewrite prefixes
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(api_router, prefix="/api")
+app.include_router(api_router, prefix="/v1")
+app.include_router(api_router, prefix="")
 
 
 if __name__ == "__main__":
