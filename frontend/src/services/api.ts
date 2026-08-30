@@ -63,7 +63,19 @@ export interface LoginResult {
   permissions: PermissionType[];
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+function cleanBaseUrl(url: string | undefined): string {
+  if (!url) return '';
+  let cleaned = url.trim().replace(/\/+$/, ''); // Remove trailing slashes
+  if (cleaned.endsWith('/api/v1')) {
+    cleaned = cleaned.substring(0, cleaned.length - 7);
+  } else if (cleaned.endsWith('/api')) {
+    cleaned = cleaned.substring(0, cleaned.length - 4);
+  }
+  return cleaned;
+}
+
+const RAW_API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = cleanBaseUrl(RAW_API_URL);
 const TOKEN_STORAGE_KEY = 'revenue_dept_access_token';
 
 let currentToken: string | null = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -84,12 +96,17 @@ async function parseJsonResponse<T = any>(response: Response, defaultErrorMsg = 
   } else {
     const text = await response.text().catch(() => '');
     if (!response.ok) {
+      if (response.status === 405) {
+        const error = new Error(`HTTP 405 Method Not Allowed at '${response.url}'. This occurs when POST requests hit your static Vercel frontend host instead of your deployed FastAPI backend service. In Vercel Project Settings -> Environment Variables, set 'VITE_API_URL' to your deployed FastAPI backend URL (e.g. https://your-backend.onrender.com).`);
+        (error as any).code = 'HTTP_405_METHOD_NOT_ALLOWED';
+        throw error;
+      }
       const error = new Error(`Backend error (HTTP ${response.status}): ${response.statusText || 'Non-JSON response'}. Verify VITE_API_URL and backend health.`);
       (error as any).code = `HTTP_${response.status}`;
       throw error;
     }
     if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
-      const error = new Error(`Received HTML instead of JSON from '${response.url}'. The Revenue backend service may be offline or VITE_API_URL is not set.`);
+      const error = new Error(`Received HTML instead of JSON from '${response.url}'. The Revenue backend service may be offline or VITE_API_URL is misconfigured.`);
       (error as any).code = 'INVALID_HTML_RESPONSE';
       throw error;
     }

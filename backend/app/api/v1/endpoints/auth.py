@@ -19,10 +19,22 @@ router = APIRouter()
     description="Authenticates a departmental officer via Username, Email, or Mobile and Password.",
 )
 @router.post(
+    "/auth/login/",
+    response_model=LoginResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+@router.post(
     "/revenue/auth/login",
     response_model=LoginResponse,
     status_code=status.HTTP_200_OK,
     summary="Department Officer Login (Alias)",
+)
+@router.post(
+    "/revenue/auth/login/",
+    response_model=LoginResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
 )
 def login(
     payload: LoginRequest,
