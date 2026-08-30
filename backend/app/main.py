@@ -63,6 +63,7 @@ def root_db_health():
 
 # Mount versioned API routes
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix="/api")
 
 
 if __name__ == "__main__":
