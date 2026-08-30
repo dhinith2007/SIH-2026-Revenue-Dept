@@ -1,0 +1,82 @@
+services:
+  # ============================================================================
+  # Revenue Department PostgreSQL Database (Independent Department Database)
+  # ============================================================================
+  revenue-db:
+    image: postgres:16-alpine
+    container_name: revenue_department_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-revenue_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - revenue_pg_data:/var/lib/postgresql/data
+      - ./database/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-revenue_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - revenue-internal-net
+
+  # ============================================================================
+  # Revenue Department FastAPI Backend Service
+  # ============================================================================
+  revenue-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: revenue_department_backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@revenue-db:5432/${POSTGRES_DB:-revenue_db}
+      BACKEND_PORT: 8000
+      FRONTEND_PORT: 5173
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      revenue-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - revenue-internal-net
+
+  # ============================================================================
+  # Revenue Department React / Nginx Frontend Portal
+  # ============================================================================
+  revenue-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: revenue_department_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      revenue-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - revenue-internal-net
+
+volumes:
+  revenue_pg_data:
+    driver: local
+
+networks:
+  revenue-internal-net:
+    driver: bridge
