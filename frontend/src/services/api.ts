@@ -74,7 +74,8 @@ function cleanBaseUrl(url: string | undefined): string {
   return cleaned;
 }
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+const PRODUCTION_BACKEND_URL = 'https://sih-2026-revenue-dept.onrender.com';
+const RAW_API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? PRODUCTION_BACKEND_URL : '');
 const API_BASE_URL = cleanBaseUrl(RAW_API_URL);
 const TOKEN_STORAGE_KEY = 'revenue_dept_access_token';
 
