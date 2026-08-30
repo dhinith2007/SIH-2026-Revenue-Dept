@@ -17,6 +17,18 @@ import {
 } from '../types/application';
 import { User, PermissionType } from '../types/auth';
 
+export interface BaseResponse<T = any> {
+  success: boolean;
+  data: T;
+  message?: string;
+  error?: {
+    code?: string;
+    message?: string;
+    correlationId?: string;
+    details?: any;
+  };
+}
+
 export interface ServiceHealthData {
   status: string;
   service: string;
@@ -56,6 +68,50 @@ const TOKEN_STORAGE_KEY = 'revenue_dept_access_token';
 
 let currentToken: string | null = localStorage.getItem(TOKEN_STORAGE_KEY);
 
+/**
+ * Safely parses API responses to prevent "Unexpected end of JSON input" on network/HTML errors
+ */
+async function parseJsonResponse<T = any>(response: Response, defaultErrorMsg = 'Request failed'): Promise<T> {
+  const contentType = response.headers.get('content-type') || '';
+  let data: any = null;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+  } else {
+    const text = await response.text().catch(() => '');
+    if (!response.ok) {
+      const error = new Error(`Backend error (HTTP ${response.status}): ${response.statusText || 'Non-JSON response'}. Verify VITE_API_URL and backend health.`);
+      (error as any).code = `HTTP_${response.status}`;
+      throw error;
+    }
+    if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
+      const error = new Error(`Received HTML instead of JSON from '${response.url}'. The Revenue backend service may be offline or VITE_API_URL is not set.`);
+      (error as any).code = 'INVALID_HTML_RESPONSE';
+      throw error;
+    }
+  }
+
+  if (!response.ok) {
+    const errorMsg = data?.error?.message || data?.message || defaultErrorMsg;
+    const errorCode = data?.error?.code || data?.code || `HTTP_${response.status}`;
+    const error = new Error(errorMsg);
+    (error as any).code = errorCode;
+    throw error;
+  }
+
+  if (!data && response.status !== 204) {
+    const error = new Error(`Empty response received from '${response.url}'. Verify backend service status.`);
+    (error as any).code = 'EMPTY_RESPONSE';
+    throw error;
+  }
+
+  return data;
+}
+
 export const apiService = {
   /**
    * Token management
@@ -91,40 +147,38 @@ export const apiService = {
    * Authentication endpoints
    */
   async login(identifier: string, password: string): Promise<LoginResult> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password }),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      });
 
-    const data = await response.json();
-    if (!response.ok) {
-      const errorMsg = data?.error?.message || 'Login failed. Please verify credentials.';
-      const errorCode = data?.error?.code || 'AUTH_ERROR';
-      const error = new Error(errorMsg);
-      (error as any).code = errorCode;
-      throw error;
+      const data = await parseJsonResponse<LoginResult>(response, 'Login failed. Please verify credentials.');
+      this.setToken(data.access_token);
+      return data;
+    } catch (err: any) {
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        throw new Error(`Unable to reach Revenue backend at '${API_BASE_URL || window.location.origin}'. Ensure backend is running and CORS is configured.`);
+      }
+      throw err;
     }
-
-    this.setToken(data.access_token);
-    return data;
   },
 
   async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
-      headers: this.getAuthHeaders(),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+        headers: this.getAuthHeaders(),
+      });
 
-    const data = await response.json();
-    if (!response.ok) {
-      const errorMsg = data?.error?.message || 'Failed to fetch user session.';
-      const errorCode = data?.error?.code || 'AUTH_ERROR';
-      const error = new Error(errorMsg);
-      (error as any).code = errorCode;
-      throw error;
+      const data = await parseJsonResponse<BaseResponse<User>>(response, 'Failed to fetch user session.');
+      return (data as any).data || (data as any);
+    } catch (err: any) {
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        throw new Error('Unable to connect to Revenue authentication service.');
+      }
+      throw err;
     }
-
-    return data.data;
   },
 
   async logout(): Promise<void> {
@@ -147,15 +201,7 @@ export const apiService = {
       body: JSON.stringify({ password }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      const errorMsg = data?.error?.message || 'Re-authentication failed.';
-      const errorCode = data?.error?.code || 'REAUTH_FAILED';
-      const error = new Error(errorMsg);
-      (error as any).code = errorCode;
-      throw error;
-    }
-
+    const data = await parseJsonResponse<any>(response, 'Re-authentication failed.');
     return data.success === true;
   },
 
@@ -164,15 +210,7 @@ export const apiService = {
       headers: this.getAuthHeaders(),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      const errorMsg = data?.error?.message || 'Access restricted. Administrator role required.';
-      const errorCode = data?.error?.code || 'FORBIDDEN';
-      const error = new Error(errorMsg);
-      (error as any).code = errorCode;
-      throw error;
-    }
-
+    const data = await parseJsonResponse<BaseResponse<User[]>>(response, 'Access restricted. Administrator role required.');
     return data.data;
   },
 
@@ -288,11 +326,7 @@ export const apiService = {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Failed to start review.';
-      throw new Error(msg);
-    }
+    const data = await parseJsonResponse<BaseResponse<WorkflowActionResponse>>(response, 'Failed to start review.');
     return data.data;
   },
 
@@ -301,11 +335,7 @@ export const apiService = {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Consent validation request failed.';
-      throw new Error(msg);
-    }
+    const data = await parseJsonResponse<BaseResponse<ConsentValidationResult>>(response, 'Consent validation request failed.');
     return data.data;
   },
 
@@ -314,11 +344,7 @@ export const apiService = {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Data validation request failed.';
-      throw new Error(msg);
-    }
+    const data = await parseJsonResponse<BaseResponse<DataValidationResult>>(response, 'Data validation request failed.');
     return data.data;
   },
 
@@ -327,11 +353,7 @@ export const apiService = {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Document verification request failed.';
-      throw new Error(msg);
-    }
+    const data = await parseJsonResponse<BaseResponse<DocumentVerificationResult>>(response, 'Document verification request failed.');
     return data.data;
   },
 
@@ -341,13 +363,7 @@ export const apiService = {
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ reason, reauth_password: reauthPassword }),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Approval failed.';
-      const err = new Error(msg);
-      (err as any).code = data?.error?.code || 'APPROVAL_ERROR';
-      throw err;
-    }
+    const data = await parseJsonResponse<BaseResponse<WorkflowActionResponse>>(response, 'Approval failed.');
     return data.data;
   },
 
@@ -357,13 +373,7 @@ export const apiService = {
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ reason }),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Rejection failed.';
-      const err = new Error(msg);
-      (err as any).code = data?.error?.code || 'REJECTION_ERROR';
-      throw err;
-    }
+    const data = await parseJsonResponse<BaseResponse<WorkflowActionResponse>>(response, 'Rejection failed.');
     return data.data;
   },
 
@@ -373,13 +383,7 @@ export const apiService = {
       headers: this.getAuthHeaders(),
       body: JSON.stringify(payload),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Failed to request additional information.';
-      const err = new Error(msg);
-      (err as any).code = data?.error?.code || 'REQUEST_INFO_ERROR';
-      throw err;
-    }
+    const data = await parseJsonResponse<BaseResponse<WorkflowActionResponse>>(response, 'Failed to request additional information.');
     return data.data;
   },
 
@@ -388,11 +392,7 @@ export const apiService = {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Reprocessing request failed.';
-      throw new Error(msg);
-    }
+    const data = await parseJsonResponse<BaseResponse<WorkflowActionResponse>>(response, 'Reprocessing request failed.');
     return data.data;
   },
 
@@ -488,14 +488,7 @@ export const apiService = {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || 'Operational retry request failed.';
-      const err = new Error(msg);
-      (err as any).code = data?.error?.code || 'RETRY_ERROR';
-      (err as any).correlationId = data?.error?.correlationId;
-      throw err;
-    }
+    const data = await parseJsonResponse<BaseResponse<WorkflowActionResponse>>(response, 'Operational retry request failed.');
     return data.data;
   },
 
@@ -706,12 +699,7 @@ export const apiService = {
       }
     );
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: { message: 'Document upload failed' } }));
-      throw new Error(err.error?.message || 'Document upload failed');
-    }
-
-    const payload = await response.json();
+    const payload = await parseJsonResponse<BaseResponse<DocumentUploadResponse>>(response, 'Document upload failed');
     return payload.data;
   },
 
@@ -754,12 +742,7 @@ export const apiService = {
       headers: this.getAuthHeaders(),
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: { message: 'Document verification failed' } }));
-      throw new Error(err.error?.message || 'Document verification failed');
-    }
-
-    const payload = await response.json();
+    const payload = await parseJsonResponse<BaseResponse<DocumentVerificationResult>>(response, 'Document verification failed');
     return payload.data;
   },
 
@@ -773,12 +756,7 @@ export const apiService = {
       body: JSON.stringify(payloadData),
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: { message: 'Manual override failed' } }));
-      throw new Error(err.error?.message || 'Manual override failed');
-    }
-
-    const payload = await response.json();
+    const payload = await parseJsonResponse<BaseResponse<DocumentVerificationResult>>(response, 'Manual override failed');
     return payload.data;
   },
 
