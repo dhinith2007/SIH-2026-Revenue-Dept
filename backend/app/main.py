@@ -36,6 +36,23 @@ app = FastAPI(
 setup_cors(app)
 register_error_handlers(app)
 
+@app.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    tags=["Root"],
+    summary="Root Service Information",
+)
+def root_info():
+    """Returns basic service metadata and links to docs and health checks."""
+    return {
+        "status": "online",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "environment": settings.APP_ENV,
+        "docs": f"{settings.API_V1_STR}/docs",
+        "health": "/health",
+    }
+
 # Root-level health endpoints for infrastructure & orchestrator health checks
 @app.get(
     "/health",
