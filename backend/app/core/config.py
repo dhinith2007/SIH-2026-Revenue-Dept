@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     SIMULATION_LATENCY_MS: int = 0
 
     # Server Ports
-    BACKEND_PORT: int = 8000
+    BACKEND_PORT: int = int(os.getenv("PORT", "8000"))
     FRONTEND_PORT: int = 5173
 
     # JWT & Session Configuration
