@@ -359,7 +359,7 @@ Canonical Verification Response (200 OK: VALID)
 
 ---
 
-## 13. Environment Variables Reference
+## 13. Environment Variables Reference 
 
 ```bash
 DEPARTMENT_1_API_BASE_URL=https://sih-2026-revenue-dept.onrender.com
