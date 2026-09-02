@@ -331,10 +331,39 @@ npm run build
 
 ---
 
-## 11. Known Limitations & Prototype Boundaries
+---
 
-1. **Simulated AI/OCR Engine**: Operates deterministically for SIH demonstration without external paid OCR cloud dependencies.
-2. **Ephemeral Document Storage**: Document binaries and SVG previews are rendered safely in-memory / streamed without leaking server filesystem paths.
-3. **Database Fallback**: Runs with PostgreSQL or instant in-memory fallback without requiring manual DB migrations.
-4. **Scope Boundary**: Strictly restricted to Revenue & Forest Department land records and residence address verification workflows.
+## 12. GovMesh Cloud Interoperability & Deployment
+
+The Revenue & Forest Department backend is deployed live on Render as an authoritative FastAPI service.
+
+* **Production Backend URL**: `https://sih-2026-revenue-dept.onrender.com`
+* **Health Check Endpoint**: `GET https://sih-2026-revenue-dept.onrender.com/health`
+* **Authentication Ingress**: `POST https://sih-2026-revenue-dept.onrender.com/revenue/auth/login`
+* **Authoritative Address Verification**: `POST https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/address/verify`
+
+### Interoperability Architecture
+```
+Citizen Portal
+    ↓ (User Initiates Address Change)
+GovMesh Core Engine
+    ↓ (Bearer Token Auth from /revenue/auth/login)
+Revenue Department Adapter
+    ↓ (POST /api/v1/revenue/address/verify)
+https://sih-2026-revenue-dept.onrender.com
+    ↓
+Land Registry & DPDP Consent Engine -> Address Proof Validation
+    ↓
+Canonical Verification Response (200 OK: VALID)
+```
+
+---
+
+## 13. Environment Variables Reference
+
+```bash
+DEPARTMENT_1_API_BASE_URL=https://sih-2026-revenue-dept.onrender.com
+REVENUE_API_BASE_URL=https://sih-2026-revenue-dept.onrender.com
+APP_ENV=production
+```
 
