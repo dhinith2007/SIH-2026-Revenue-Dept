@@ -56,6 +56,23 @@ class DataValidationService:
             if not val_new or val_new.upper() in ("N/A", "EMPTY", "NULL", "NONE"):
                 checks["address_completeness"] = "FAILED"
                 errors.append(f"New address is incomplete: missing '{field}'.")
+            elif re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", val_new):
+                checks["address_completeness"] = "FAILED"
+                errors.append(f"Address field '{field}' contains illegal control characters.")
+            elif len(val_new) > 150:
+                checks["address_completeness"] = "FAILED"
+                errors.append(f"Address field '{field}' exceeds maximum length of 150 characters.")
+
+        # Pincode format validation (6-digit Indian PIN) (SEC-09)
+        pin_val = str(new_addr.get("pincode", "")).strip()
+        if pin_val and not re.match(r"^[1-9][0-9]{5}$", pin_val):
+            checks["address_completeness"] = "FAILED"
+            errors.append(f"Invalid postal pincode '{pin_val}': must be a 6-digit number not starting with 0.")
+
+        existing_pin = str(existing_addr.get("pincode", "")).strip()
+        if existing_pin and not re.match(r"^[1-9][0-9]{5}$", existing_pin):
+            checks["address_completeness"] = "FAILED"
+            errors.append(f"Invalid existing address postal pincode '{existing_pin}': must be a 6-digit number not starting with 0.")
 
         # 4. Date Format Validation
         rec_at = app_dict.get("received_at")

@@ -100,6 +100,36 @@ class InactiveAccountError(RevenueAppException):
         )
 
 
+class AccountLockedError(RevenueAppException):
+    def __init__(
+        self,
+        message: str = "This department account is temporarily locked due to multiple failed login attempts. Please try again in 15 minutes.",
+        correlation_id: Optional[str] = None,
+    ):
+        super().__init__(
+            code="ACCOUNT_LOCKED",
+            message=message,
+            status_code=status.HTTP_403_FORBIDDEN,
+            correlation_id=correlation_id,
+        )
+
+
+class RateLimitExceededError(RevenueAppException):
+    def __init__(
+        self,
+        message: str = "Too many authentication attempts. Please try again later.",
+        retry_after: int = 60,
+        correlation_id: Optional[str] = None,
+    ):
+        super().__init__(
+            code="RATE_LIMIT_EXCEEDED",
+            message=message,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            correlation_id=correlation_id,
+        )
+        self.retry_after = retry_after
+
+
 class TokenExpiredError(RevenueAppException):
     def __init__(self, message: str = "Your session token has expired. Please sign in again.", correlation_id: Optional[str] = None):
         super().__init__(
@@ -307,6 +337,8 @@ def register_error_handlers(app: FastAPI) -> None:
         headers = {}
         if exc.status_code == status.HTTP_401_UNAUTHORIZED:
             headers["WWW-Authenticate"] = "Bearer"
+        if hasattr(exc, "retry_after") and exc.retry_after is not None:
+            headers["Retry-After"] = str(exc.retry_after)
         return JSONResponse(
             status_code=exc.status_code,
             headers=headers,
@@ -345,16 +377,22 @@ def register_error_handlers(app: FastAPI) -> None:
         code = "HTTP_ERROR"
         if exc.status_code == 404:
             code = "ENDPOINT_NOT_FOUND"
+        elif exc.status_code == 405:
+            code = "METHOD_NOT_ALLOWED"
         elif exc.status_code == 403:
             code = "INSUFFICIENT_PERMISSION"
         elif exc.status_code == 401:
             code = "AUTHENTICATION_REQUIRED"
+        elif exc.status_code == 429:
+            code = "RATE_LIMIT_EXCEEDED"
         elif exc.status_code == 503:
             code = "SERVICE_UNAVAILABLE"
         elif exc.status_code == 504:
             code = "GATEWAY_TIMEOUT"
 
         headers = {}
+        if exc.headers:
+            headers.update(exc.headers)
         if exc.status_code == 401:
             headers["WWW-Authenticate"] = "Bearer"
 

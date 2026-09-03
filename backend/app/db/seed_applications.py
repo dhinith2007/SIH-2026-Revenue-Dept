@@ -893,3 +893,7 @@ SYNTHETIC_APPLICATIONS: List[Dict[str, Any]] = [
 def get_seeded_applications() -> List[Dict[str, Any]]:
     """Returns synthetic applications with fresh timestamps."""
     return SYNTHETIC_APPLICATIONS
+
+
+# Backward compatibility alias
+DEMO_APPLICATIONS = SYNTHETIC_APPLICATIONS

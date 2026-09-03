@@ -53,18 +53,31 @@ def init_db() -> None:
         import app.models.audit        # noqa: F401
         import app.models.consent      # noqa: F401
         import app.models.notification # noqa: F401
+        import app.models.document_evidence # noqa: F401
         Base.metadata.create_all(bind=engine)
-        logger.info("Database schema initialized successfully (health, users, applications, audit, consents, notifications).")
+        logger.info("Database schema initialized successfully (health, users, applications, audit, consents, notifications, document_evidence).")
+
+        # Automatically ensure standard demo dataset is seeded idempotently
+        with SessionLocal() as db_session:
+            from app.db.seed import seed_database
+            seed_database(db=db_session)
     except Exception as exc:
         mark_db_unavailable()
         logger.warning("Could not automatically initialize DB tables, falling back to memory store: %s", exc)
 
 
 def get_db() -> Generator[Session, None, None]:
-    """FastAPI dependency for obtaining a database session."""
+    """FastAPI dependency for obtaining a database session.
+
+    Explicitly rolls back any uncommitted work before closing the session
+    so that failed requests never leave the connection in a dirty state.
+    """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

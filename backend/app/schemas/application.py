@@ -1,6 +1,10 @@
+import re
 from typing import List, Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+PINCODE_RE = re.compile(r"^[1-9][0-9]{5}$")
 
 
 class AddressDetail(BaseModel):
@@ -10,6 +14,28 @@ class AddressDetail(BaseModel):
     taluka: str
     district: str
     pincode: str
+
+    @field_validator("house_no", "street", "village", "taluka", "district", mode="before")
+    @classmethod
+    def validate_text_fields(cls, v: Any, info) -> str:
+        if v is None:
+            return ""
+        s = str(v).strip()
+        if CONTROL_CHAR_RE.search(s):
+            raise ValueError(f"Field '{info.field_name}' contains illegal control characters.")
+        if len(s) > 150:
+            raise ValueError(f"Field '{info.field_name}' exceeds maximum length of 150 characters.")
+        return s
+
+    @field_validator("pincode", mode="before")
+    @classmethod
+    def validate_pincode(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        s = str(v).strip()
+        if not PINCODE_RE.match(s):
+            raise ValueError(f"Invalid postal pincode '{s}'. Must be a 6-digit number not starting with 0.")
+        return s
 
 
 class ProofDocumentMetadata(BaseModel):

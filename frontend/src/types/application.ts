@@ -233,6 +233,16 @@ export interface DocumentVerificationResult {
     reason: string;
     timestamp: string;
   } | null;
+  // Phase 10 Step 04/05 AI Confidence & Recommendation Engine fields
+  ocr_confidence?: number;
+  match_confidence?: number;
+  overall_confidence?: number;
+  recommendation?: 'HIGH_CONFIDENCE_MATCH' | 'MEDIUM_CONFIDENCE_REVIEW' | 'LOW_CONFIDENCE_REVIEW' | 'MISMATCH_REVIEW' | 'INSUFFICIENT_EVIDENCE' | string;
+  evidence_quality?: 'COMPLETE' | 'PARTIAL' | 'INSUFFICIENT' | 'FAILED' | string;
+  risk_flags?: string[];
+  reasons?: string[];
+  officer_guidance?: string;
+  score_breakdown?: Record<string, number>;
 }
 
 export interface ProofDocumentMetadata {
@@ -351,5 +361,88 @@ export type FailureSimulationMode = 'NONE' | 'API_UNAVAILABLE' | 'TIMEOUT' | 'IN
 
 export interface FailureModeResponse {
   failure_mode: FailureSimulationMode;
+}
+
+// ============================================================================
+// Phase 11: Revenue Department Dashboard & Analytics Interfaces
+// ============================================================================
+export interface AnalyticsSummaryKPI {
+  total_applications: number;
+  pending_applications: number;
+  under_review: number;
+  approved: number;
+  rejected: number;
+  information_requested: number;
+  document_verification_pending: number;
+  review_required: number;
+  today_applications: number;
+  average_processing_time_minutes: number;
+  average_processing_time_str: string;
+}
+
+export interface StatusDistributionItem {
+  status: string;
+  count: number;
+  percentage: number;
+}
+
+export interface TrendItem {
+  date: string;
+  incoming: number;
+  approved: number;
+  rejected: number;
+}
+
+export interface VerificationAnalytics {
+  total_documents: number;
+  verified_documents: number;
+  pending_documents: number;
+  ocr_completed_count: number;
+  ocr_failed_count: number;
+  ocr_success_rate: number;
+  average_ocr_confidence: number;
+  average_match_confidence: number;
+  average_overall_confidence: number;
+}
+
+export interface ConfidenceAnalytics {
+  recommendation_counts: Record<string, number>;
+  evidence_quality_counts: Record<string, number>;
+}
+
+export interface RiskAnalytics {
+  risk_flag_counts: Record<string, number>;
+  total_flagged_documents: number;
+}
+
+export interface OfficerWorkloadItem {
+  officer_id: string;
+  officer_name: string;
+  assigned_count: number;
+  pending_count: number;
+  completed_count: number;
+}
+
+export interface RecentActivityItem {
+  id: string;
+  action: string;
+  officer_name: string;
+  application_id: string;
+  timestamp: string;
+  reason?: string;
+  new_status?: string;
+}
+
+export interface FullDashboardAnalyticsData {
+  division: string;
+  disclaimer: string;
+  kpis: AnalyticsSummaryKPI;
+  status_distribution: StatusDistributionItem[];
+  trends: TrendItem[];
+  verification: VerificationAnalytics;
+  confidence: ConfidenceAnalytics;
+  risks: RiskAnalytics;
+  officer_workload: OfficerWorkloadItem[];
+  recent_activity: RecentActivityItem[];
 }
 

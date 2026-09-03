@@ -237,17 +237,19 @@ export const apiService = {
    */
   async getDashboardSummary(): Promise<DashboardSummaryData> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/revenue/dashboard/summary`, {
+      const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/revenue/dashboard/summary` : '/api/v1/revenue/dashboard/summary';
+      const response = await fetch(url, {
         headers: this.getAuthHeaders(),
-      });
-      if (response.ok) {
-        const payload = await response.json();
-        if (payload.success && payload.data) {
+      }).catch(() => null);
+
+      if (response && response.ok) {
+        const payload = await response.json().catch(() => null);
+        if (payload && payload.success && payload.data) {
           return payload.data;
         }
       }
     } catch (error) {
-      console.warn('Using client fallback for dashboard summary:', error);
+      // Fallback below
     }
 
     return {
@@ -259,11 +261,45 @@ export const apiService = {
       action_required: 1,
       failed_or_queued: 1,
       average_processing_time: '2h 15m',
-      today_applications: 5,
+      today_applications: 3,
       govmesh_connection: 'DEMO ONLINE',
       api_status: 'ONLINE',
       pending_events: 1,
     };
+  },
+
+  /**
+   * Phase 11: Backend-Authoritative Analytics & Dashboard API
+   */
+  async getFullDashboardAnalytics(
+    days: number = 7,
+    status?: string,
+    recommendationBand?: string,
+    riskFlag?: string
+  ): Promise<any> {
+    const params = new URLSearchParams();
+    params.set('days', days.toString());
+    if (status) params.set('status', status);
+    if (recommendationBand) params.set('recommendation_band', recommendationBand);
+    if (riskFlag) params.set('risk_flag', riskFlag);
+
+    try {
+      const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/analytics/dashboard?${params.toString()}` : `/api/v1/analytics/dashboard?${params.toString()}`;
+      const response = await fetch(url, {
+        headers: this.getAuthHeaders(),
+      }).catch(() => null);
+
+      if (response && response.ok) {
+        const payload = await response.json().catch(() => null);
+        if (payload && payload.success && payload.data) {
+          return payload.data;
+        }
+      }
+    } catch (error) {
+      // Fallback below
+    }
+
+    return null;
   },
 
   async getApplications(params: ApplicationFilterParams = {}): Promise<ApplicationListResult> {

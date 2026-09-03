@@ -11,6 +11,7 @@ from app.schemas.common import BaseResponse
 from app.repositories.application_repository import ApplicationRepository
 from app.api.deps import get_application_repository, get_current_user
 from app.core.errors import ResourceNotFoundError
+from app.core.authorization import verify_application_access
 from app.core.simulation import check_simulated_failure
 from app.core.logging import logger
 
@@ -219,6 +220,8 @@ async def get_application_detail(
             message=f"Application '{application_id}' was not found in departmental records.",
             correlation_id=corr,
         )
+
+    verify_application_access(current_user, app, for_mutation=False)
 
     return BaseResponse(
         success=True,

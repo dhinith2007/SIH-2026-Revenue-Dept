@@ -1,7 +1,8 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import uuid
-from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, status
+import hashlib
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, Query, status
 from fastapi.responses import JSONResponse, Response
 from app.schemas.common import BaseResponse
 from app.schemas.workflow import (
@@ -20,6 +21,7 @@ from app.api.deps import (
     require_permission,
 )
 from app.core.permissions import PermissionEnum
+from app.core.authorization import verify_application_access
 from app.core.errors import (
     ResourceNotFoundError,
     DocumentTypeUnsupportedError,
@@ -29,6 +31,11 @@ from app.core.errors import (
     ApplicationFinalizedError,
 )
 from app.core.simulation import check_simulated_failure
+from app.core.security_utils import (
+    sanitize_svg_text,
+    validate_file_magic_bytes,
+    validate_filename_safety,
+)
 from app.core.logging import logger
 
 router = APIRouter()
@@ -63,14 +70,18 @@ async def upload_document_endpoint(
     if not app:
         raise ResourceNotFoundError(message=f"Application '{application_id}' not found.")
 
-    if app.get("status") in ("VERIFIED", "REJECTED"):
-        raise ApplicationFinalizedError(
-            message="Cannot upload new documents to a finalized immutable application."
-        )
+    verify_application_access(current_user, app, for_mutation=True)
+
+    # 0. Validate Filename Safety (path traversal, null bytes, length)
+    raw_filename = file.filename or "Uploaded_Document.pdf"
+    try:
+        safe_filename = validate_filename_safety(raw_filename)
+    except ValueError as val_err:
+        raise DocumentInvalidError(message=f"Invalid document filename: {val_err}")
 
     # 1. Validate File MIME Type
     mime = file.content_type or "application/octet-stream"
-    if mime not in ALLOWED_MIME_TYPES and not any(file.filename.lower().endswith(ext) for ext in [".pdf", ".jpg", ".jpeg", ".png"]):
+    if mime not in ALLOWED_MIME_TYPES and not any(safe_filename.lower().endswith(ext) for ext in [".pdf", ".jpg", ".jpeg", ".png"]):
         raise DocumentTypeUnsupportedError(
             message=f"Unsupported file format '{mime}'. Supported formats: PDF, JPG, PNG."
         )
@@ -87,16 +98,34 @@ async def upload_document_endpoint(
             message=f"File size ({file_size_bytes / (1024 * 1024):.1f} MB) exceeds maximum allowed 10 MB."
         )
 
+    # 2.1 Validate Magic Bytes (SEC-04)
+    check_mime = mime
+    if check_mime == "application/octet-stream":
+        if safe_filename.lower().endswith(".pdf"):
+            check_mime = "application/pdf"
+        elif safe_filename.lower().endswith((".jpg", ".jpeg")):
+            check_mime = "image/jpeg"
+        elif safe_filename.lower().endswith(".png"):
+            check_mime = "image/png"
+
+    is_valid_magic, magic_err = validate_file_magic_bytes(content, check_mime, safe_filename)
+    if not is_valid_magic:
+        raise DocumentInvalidError(message=magic_err)
+
+    # 2.2 Calculate SHA-256 Evidence Integrity Hash
+    doc_hash = hashlib.sha256(content).hexdigest()
+
     # 3. Create document record
     doc_id = f"DOC-REV-{uuid.uuid4().hex[:6].upper()}"
     size_str = f"{file_size_bytes / 1024:.1f} KB" if file_size_bytes < 1024 * 1024 else f"{file_size_bytes / (1024 * 1024):.1f} MB"
 
     doc_dict = {
         "document_id": doc_id,
-        "document_name": file.filename or "Uploaded_Document.pdf",
+        "document_name": safe_filename,
         "document_type": document_type,
         "mime_type": mime,
         "file_size": size_str,
+        "document_hash": doc_hash,
         "upload_date": datetime.now(timezone.utc).isoformat(),
         "verification_status": "PENDING",
         "extracted_name": app.get("citizen_name"),
@@ -114,10 +143,10 @@ async def upload_document_endpoint(
         new_status=app.get("status", "PROCESSING"),
         reason=f"Attached proof document: {doc_dict['document_name']} ({doc_id})",
         correlation_id=app.get("correlation_id", application_id),
-        details={"document_id": doc_id, "document_type": document_type, "file_size": size_str},
+        details={"document_id": doc_id, "document_type": document_type, "file_size": size_str, "document_hash": doc_hash},
     )
 
-    logger.info("Document '%s' uploaded for application '%s' by '%s'", doc_id, application_id, current_user["username"])
+    logger.info("Document '%s' uploaded for application '%s' by '%s' (SHA-256: %s)", doc_id, application_id, current_user["username"], doc_hash)
 
     return BaseResponse(
         success=True,
@@ -128,6 +157,7 @@ async def upload_document_endpoint(
             document_type=document_type,
             file_size=size_str,
             mime_type=mime,
+            document_hash=doc_hash,
             verification_status="PENDING",
             message="Document uploaded and attached successfully.",
         ),
@@ -152,12 +182,14 @@ async def list_application_documents_endpoint(
     if not app:
         raise ResourceNotFoundError(message=f"Application '{application_id}' not found.")
 
+    verify_application_access(current_user, app, for_mutation=False)
+
     data_payload = app.get("data_payload", {})
     proof_docs = data_payload.get("proof_documents", [])
 
     results = []
     for idx, doc in enumerate(proof_docs):
-        ver_res = DocumentVerificationService.verify_document(app, doc_index=idx)
+        ver_res = DocumentVerificationService.verify_document(app, doc_index=idx, db=app_repo.db)
         results.append(
             ProofDocumentMetadata(
                 document_id=doc.get("document_id", "DOC-UNKNOWN"),
@@ -166,6 +198,7 @@ async def list_application_documents_endpoint(
                 document_type=doc.get("document_type", "ELECTRICITY_BILL"),
                 mime_type=doc.get("mime_type", "application/pdf"),
                 file_size=doc.get("file_size", "1.2 MB"),
+                document_hash=doc.get("document_hash"),
                 upload_date=doc.get("upload_date"),
                 verification_status=doc.get("verification_status", "PENDING"),
                 extracted_name=doc.get("extracted_name"),
@@ -199,6 +232,7 @@ async def get_document_endpoint(
         raise ResourceNotFoundError(message=f"Document '{document_id}' not found.")
 
     doc, app = found
+    verify_application_access(current_user, app, for_mutation=False)
     data_payload = app.get("data_payload", {})
     proof_docs = data_payload.get("proof_documents", [])
     doc_index = 0
@@ -207,7 +241,7 @@ async def get_document_endpoint(
             doc_index = i
             break
 
-    ver_res = DocumentVerificationService.verify_document(app, doc_index=doc_index)
+    ver_res = DocumentVerificationService.verify_document(app, doc_index=doc_index, db=app_repo.db)
 
     return BaseResponse(
         success=True,
@@ -218,6 +252,7 @@ async def get_document_endpoint(
             document_type=doc.get("document_type", "ELECTRICITY_BILL"),
             mime_type=doc.get("mime_type", "application/pdf"),
             file_size=doc.get("file_size", "1.2 MB"),
+            document_hash=doc.get("document_hash"),
             upload_date=doc.get("upload_date"),
             verification_status=doc.get("verification_status", "PENDING"),
             extracted_name=doc.get("extracted_name"),
@@ -245,14 +280,24 @@ async def preview_document_endpoint(
         raise ResourceNotFoundError(message=f"Document '{document_id}' not found.")
 
     doc, app = found
-    citizen_name = app.get("citizen_name", "Citizen")
-    doc_name = doc.get("document_name", "Utility_Bill.pdf")
-    doc_type = doc.get("document_type", "ELECTRICITY_BILL").replace("_", " ")
+    verify_application_access(current_user, app, for_mutation=False)
+    citizen_name = sanitize_svg_text(app.get("citizen_name", "Citizen"))
+    doc_name = sanitize_svg_text(doc.get("document_name", "Utility_Bill.pdf"))
+    doc_type = sanitize_svg_text(doc.get("document_type", "ELECTRICITY_BILL").replace("_", " "))
+    document_id_safe = sanitize_svg_text(document_id)
     data_payload = app.get("data_payload", {})
     new_addr = data_payload.get("new_address", {})
-    addr_str = f"{new_addr.get('house_no', '')}, {new_addr.get('street', '')}, {new_addr.get('village', '')}, Taluka: {new_addr.get('taluka', '')}, Dist: {new_addr.get('district', '')} - {new_addr.get('pincode', '')}"
 
-    # Return clean SVG simulated document representation
+    house_no = sanitize_svg_text(new_addr.get("house_no", ""))
+    street = sanitize_svg_text(new_addr.get("street", ""))
+    village = sanitize_svg_text(new_addr.get("village", ""))
+    taluka = sanitize_svg_text(new_addr.get("taluka", "Haveli"))
+    district = sanitize_svg_text(new_addr.get("district", "Pune"))
+    pincode = sanitize_svg_text(new_addr.get("pincode", "411038"))
+
+    addr_str = f"{house_no}, {street}, {village}, Taluka: {taluka}, Dist: {district} - {pincode}"
+
+    # Return clean SVG simulated document representation (SEC-05 escaped)
     svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="100%" height="100%">
   <rect width="600" height="800" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
   <rect x="20" y="20" width="560" height="60" fill="#1e293b" rx="4"/>
@@ -263,13 +308,13 @@ async def preview_document_endpoint(
   <text x="40" y="115" fill="#64748b" font-size="10" font-family="sans-serif">CONSUMER NAME:</text>
   <text x="40" y="135" fill="#0f172a" font-size="13" font-weight="bold" font-family="sans-serif">{citizen_name}</text>
   <text x="340" y="115" fill="#64748b" font-size="10" font-family="sans-serif">DOCUMENT REF / ID:</text>
-  <text x="340" y="135" fill="#0284c7" font-size="12" font-family="monospace">{document_id}</text>
+  <text x="340" y="135" fill="#0284c7" font-size="12" font-family="monospace">{document_id_safe}</text>
 
   <rect x="20" y="170" width="560" height="120" fill="#f1f5f9" stroke="#e2e8f0" rx="4"/>
   <text x="40" y="195" fill="#64748b" font-size="10" font-family="sans-serif">REGISTERED PREMISES ADDRESS:</text>
   <text x="40" y="220" fill="#0f172a" font-size="12" font-weight="600" font-family="sans-serif">{addr_str}</text>
-  <text x="40" y="250" fill="#64748b" font-size="10" font-family="sans-serif">TALUKA / JURISDICTION: <tspan fill="#0f172a" font-weight="bold">{new_addr.get('taluka', 'Haveli')}</tspan> | DISTRICT: <tspan fill="#0f172a" font-weight="bold">{new_addr.get('district', 'Pune')}</tspan></text>
-  <text x="40" y="275" fill="#64748b" font-size="10" font-family="sans-serif">POSTAL PINCODE: <tspan fill="#0f172a" font-weight="bold">{new_addr.get('pincode', '411038')}</tspan></text>
+  <text x="40" y="250" fill="#64748b" font-size="10" font-family="sans-serif">TALUKA / JURISDICTION: <tspan fill="#0f172a" font-weight="bold">{taluka}</tspan> | DISTRICT: <tspan fill="#0f172a" font-weight="bold">{district}</tspan></text>
+  <text x="40" y="275" fill="#64748b" font-size="10" font-family="sans-serif">POSTAL PINCODE: <tspan fill="#0f172a" font-weight="bold">{pincode}</tspan></text>
 
   <rect x="20" y="300" width="560" height="400" fill="#ffffff" stroke="#e2e8f0" rx="4"/>
   <text x="40" y="330" fill="#94a3b8" font-size="11" font-weight="bold" font-family="sans-serif">OFFICIAL BILLING &amp; METER PARTICULARS</text>
@@ -299,6 +344,7 @@ async def preview_document_endpoint(
 async def verify_document_by_id_endpoint(
     request: Request,
     document_id: str,
+    provider: Optional[str] = Query(None, description="Configured OCR provider: SIMULATED | TESSERACT"),
     app_repo: ApplicationRepository = Depends(get_application_repository),
     audit_repo: AuditRepository = Depends(get_audit_repository),
     current_user: Dict[str, Any] = Depends(require_permission(PermissionEnum.DOCUMENT_VERIFY)),
@@ -309,6 +355,7 @@ async def verify_document_by_id_endpoint(
         raise ResourceNotFoundError(message=f"Document '{document_id}' not found.")
 
     doc, app = found
+    verify_application_access(current_user, app, for_mutation=True)
     data_payload = app.get("data_payload", {})
     proof_docs = data_payload.get("proof_documents", [])
     doc_index = 0
@@ -317,9 +364,11 @@ async def verify_document_by_id_endpoint(
             doc_index = i
             break
 
-    result = DocumentVerificationService.verify_document(app, doc_index=doc_index)
+    result = DocumentVerificationService.verify_document(
+        app, doc_index=doc_index, provider_type=provider, db=app_repo.db
+    )
 
-    # Record Audit Event
+    # Record Audit Event (DPDP compliant: no raw OCR text, metadata only)
     audit_action = "DOCUMENT_VERIFIED" if result.valid else ("DOCUMENT_MISMATCH" if result.match_status == "MISMATCH" else "OCR_COMPLETED")
     audit_repo.record_audit_event(
         officer_id=current_user["id"],
@@ -328,13 +377,16 @@ async def verify_document_by_id_endpoint(
         action=audit_action,
         previous_status=app.get("status"),
         new_status=app.get("status", "PROCESSING"),
-        reason=f"OCR Verification result: {result.match_status} (Assistive Score: {result.assistive_score * 100:.0f}%)",
+        reason=f"OCR Verification result: {result.match_status} (Assistive Score: {result.assistive_score * 100:.0f}%, Provider: {result.provider})",
         correlation_id=app.get("correlation_id", document_id),
         details={
             "document_id": document_id,
+            "provider": result.provider,
             "match_status": result.match_status,
             "assistive_score": result.assistive_score,
             "matched_components": result.matched_components_count,
+            "document_hash": result.document_hash,
+            "duration_ms": result.processing_duration_ms,
         },
     )
 
@@ -368,10 +420,7 @@ async def override_document_endpoint(
     doc, app = found
     app_id = app.get("application_id", "")
 
-    if app.get("status") in ("VERIFIED", "REJECTED"):
-        raise ApplicationFinalizedError(
-            message="Cannot override document verification on a finalized immutable application."
-        )
+    verify_application_access(current_user, app, is_override=True)
 
     override_data = {
         "officer_id": current_user["id"],

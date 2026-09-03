@@ -55,6 +55,9 @@ ROLE_PERMISSIONS: Dict[RoleEnum, Set[PermissionEnum]] = {
         PermissionEnum.USER_MANAGE,
         PermissionEnum.SERVICE_METADATA_CONFIGURE,
         PermissionEnum.SYSTEM_HEALTH_VIEW,
+        PermissionEnum.APPLICATION_VIEW_ALL,
+        PermissionEnum.DOCUMENT_VERIFY,
+        PermissionEnum.EXCEPTION_OVERRIDE,
     },
     RoleEnum.READ_ONLY_AUDITOR: {
         PermissionEnum.AUDIT_VIEW,

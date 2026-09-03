@@ -136,3 +136,51 @@ CREATE TABLE IF NOT EXISTS application_status_history (
 
 CREATE INDEX IF NOT EXISTS idx_history_app_id ON application_status_history(application_id);
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON application_status_history(timestamp DESC);
+
+-- ============================================================================
+-- Phase 05: Departmental Internal Notifications Table
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS revenue_notifications (
+    id VARCHAR(50) PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    application_id VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message VARCHAR(1000) NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read BOOLEAN NOT NULL DEFAULT FALSE,
+    severity VARCHAR(20) NOT NULL DEFAULT 'INFO',
+    target_role VARCHAR(50) NOT NULL DEFAULT 'ALL'
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_type ON revenue_notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notif_app_id ON revenue_notifications(application_id);
+CREATE INDEX IF NOT EXISTS idx_notif_timestamp ON revenue_notifications(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_read ON revenue_notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notif_target_role ON revenue_notifications(target_role);
+
+-- ============================================================================
+-- Phase 10: Document Verification Evidence & OCR Records Table
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS document_verification_records (
+    id VARCHAR(50) PRIMARY KEY,
+    document_id VARCHAR(50) NOT NULL,
+    application_id VARCHAR(50) NOT NULL,
+    document_hash VARCHAR(64),
+    provider VARCHAR(50) NOT NULL DEFAULT 'SIMULATED',
+    status VARCHAR(50) NOT NULL DEFAULT 'SUCCESS',
+    confidence FLOAT NOT NULL DEFAULT 0.0,
+    extracted_fields JSONB NOT NULL,
+    field_confidences JSONB NOT NULL,
+    error_message VARCHAR(500),
+    processing_duration_ms FLOAT,
+    correlation_id VARCHAR(100),
+    verified_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    verified_by VARCHAR(50)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_evidence_doc_id ON document_verification_records(document_id);
+CREATE INDEX IF NOT EXISTS idx_doc_evidence_app_id ON document_verification_records(application_id);
+CREATE INDEX IF NOT EXISTS idx_doc_evidence_hash ON document_verification_records(document_hash);
+CREATE INDEX IF NOT EXISTS idx_doc_evidence_verified_at ON document_verification_records(verified_at DESC);
+
+

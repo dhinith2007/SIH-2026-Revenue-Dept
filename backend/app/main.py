@@ -22,17 +22,27 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down %s", settings.PROJECT_NAME)
 
 
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="Simulated Revenue & Forest Department REST Service for GovMesh SIH26129 Prototype",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_DOCS else None,
+    docs_url=f"{settings.API_V1_STR}/docs" if settings.ENABLE_DOCS else None,
+    redoc_url=f"{settings.API_V1_STR}/redoc" if settings.ENABLE_DOCS else None,
     lifespan=lifespan,
 )
 
-# Set up CORS and global error handlers
+# 1. Transport & HTTP Security Middleware (SEC-06)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. Host Header Validation (only active when ALLOWED_HOSTS is explicitly restricted)
+if settings.ALLOWED_HOSTS and settings.ALLOWED_HOSTS != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
+
+# 3. Set up CORS and global error handlers
 setup_cors(app)
 register_error_handlers(app)
 

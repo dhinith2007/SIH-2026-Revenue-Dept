@@ -7,6 +7,8 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.application_repository import ApplicationRepository
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.notification_repository import NotificationRepository
+from app.repositories.consent_repository import ConsentRepository
+from app.repositories.document_evidence_repository import DocumentEvidenceRepository
 from app.services.auth_service import AuthService
 from app.services.workflow_service import WorkflowService
 from app.services.notification_service import NotificationService
@@ -39,6 +41,14 @@ def get_notification_repository(db: Session = Depends(get_db)) -> NotificationRe
     return NotificationRepository(db)
 
 
+def get_consent_repository(db: Session = Depends(get_db)) -> ConsentRepository:
+    return ConsentRepository(db)
+
+
+def get_document_evidence_repository(db: Session = Depends(get_db)) -> DocumentEvidenceRepository:
+    return DocumentEvidenceRepository(db)
+
+
 def get_auth_service(user_repo: UserRepository = Depends(get_user_repository)) -> AuthService:
     return AuthService(user_repo)
 
@@ -53,8 +63,18 @@ def get_workflow_service(
     app_repo: ApplicationRepository = Depends(get_application_repository),
     audit_repo: AuditRepository = Depends(get_audit_repository),
     notif_repo: NotificationRepository = Depends(get_notification_repository),
+    consent_repo: ConsentRepository = Depends(get_consent_repository),
 ) -> WorkflowService:
-    return WorkflowService(app_repo, audit_repo, notif_repo)
+    return WorkflowService(app_repo, audit_repo, notif_repo, consent_repo)
+
+
+def get_analytics_service(
+    app_repo: ApplicationRepository = Depends(get_application_repository),
+    evidence_repo: DocumentEvidenceRepository = Depends(get_document_evidence_repository),
+    audit_repo: AuditRepository = Depends(get_audit_repository),
+):
+    from app.services.analytics_service import AnalyticsService
+    return AnalyticsService(app_repo, evidence_repo, audit_repo)
 
 
 def get_current_user(

@@ -39,6 +39,7 @@ class AuditRepository:
         reason: Optional[str],
         correlation_id: str,
         details: Optional[Dict[str, Any]] = None,
+        auto_commit: bool = True,
     ) -> Dict[str, Any]:
         """Appends an immutable audit log entry."""
         entry_id = f"AUD-{uuid.uuid4().hex[:8].upper()}"
@@ -77,11 +78,17 @@ class AuditRepository:
                     details=details or {},
                 )
                 self.db.add(db_item)
-                self.db.commit()
+                if auto_commit:
+                    self.db.commit()
+                else:
+                    self.db.flush()
             except SQLAlchemyError as exc:
-                self.db.rollback()
-                self._mark_db_failed()
-                logger.warning("DB insert failed in create_audit_entry: %s", exc)
+                if auto_commit:
+                    self.db.rollback()
+                    self._mark_db_failed()
+                    logger.warning("DB insert failed in create_audit_entry: %s", exc)
+                else:
+                    raise
 
         return record
 
@@ -96,6 +103,7 @@ class AuditRepository:
         reason: Optional[str],
         correlation_id: str,
         details: Optional[Dict[str, Any]] = None,
+        auto_commit: bool = True,
     ) -> Dict[str, Any]:
         """Convenience alias for create_audit_entry."""
         return self.create_audit_entry(
@@ -108,6 +116,7 @@ class AuditRepository:
             reason=reason,
             correlation_id=correlation_id,
             details=details,
+            auto_commit=auto_commit,
         )
 
     def record_status_history(
@@ -119,6 +128,7 @@ class AuditRepository:
         changed_by: str,
         reason: Optional[str],
         correlation_id: str,
+        auto_commit: bool = True,
     ) -> Dict[str, Any]:
         """Appends a status transition to the application workflow timeline."""
         hist_id = f"HIST-{uuid.uuid4().hex[:8].upper()}"
@@ -151,11 +161,17 @@ class AuditRepository:
                     correlation_id=correlation_id,
                 )
                 self.db.add(db_item)
-                self.db.commit()
+                if auto_commit:
+                    self.db.commit()
+                else:
+                    self.db.flush()
             except SQLAlchemyError as exc:
-                self.db.rollback()
-                self._mark_db_failed()
-                logger.warning("DB insert failed in record_status_history: %s", exc)
+                if auto_commit:
+                    self.db.rollback()
+                    self._mark_db_failed()
+                    logger.warning("DB insert failed in record_status_history: %s", exc)
+                else:
+                    raise
 
         return record
 

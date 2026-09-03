@@ -36,6 +36,7 @@ class DataValidationResult(BaseModel):
 class DocumentExtractedFields(BaseModel):
     extracted_name: str
     extracted_address: str
+    citizen_name: Optional[str] = None
     house_no: Optional[str] = None
     street: Optional[str] = None
     village: Optional[str] = None
@@ -43,6 +44,7 @@ class DocumentExtractedFields(BaseModel):
     district: Optional[str] = None
     pincode: Optional[str] = None
     consumer_number: Optional[str] = None
+    document_number: Optional[str] = None
     issue_date: Optional[str] = None
     document_type: str = "ELECTRICITY_BILL"
     document_reference: str = ""
@@ -67,8 +69,21 @@ class DocumentVerificationResult(BaseModel):
     details: Optional[str] = None
     provider: str = "SIMULATED"
     is_simulated_ocr: bool = True
+    document_hash: Optional[str] = None
+    processing_duration_ms: Optional[float] = None
     verification_timestamp: Optional[datetime] = None
     manual_override: Optional[Dict[str, Any]] = None
+    # Phase 10 Step 04 Confidence Engine fields
+    ocr_confidence: float = 0.95
+    match_confidence: float = 1.0
+    overall_confidence: float = 1.0
+    recommendation: str = "HIGH_CONFIDENCE_MATCH"
+    evidence_quality: str = "COMPLETE"
+    risk_flags: List[str] = Field(default_factory=list)
+    reasons: List[str] = Field(default_factory=list)
+    officer_guidance: Optional[str] = None
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
+
 
 
 class ProofDocumentMetadata(BaseModel):
@@ -78,6 +93,7 @@ class ProofDocumentMetadata(BaseModel):
     document_type: str
     mime_type: str = "application/pdf"
     file_size: str = "1.2 MB"
+    document_hash: Optional[str] = None
     upload_date: Optional[str] = None
     verification_status: str = "PENDING"
     extracted_name: Optional[str] = None
@@ -92,6 +108,7 @@ class DocumentUploadResponse(BaseModel):
     document_type: str
     file_size: str
     mime_type: str
+    document_hash: Optional[str] = None
     verification_status: str
     message: str
 

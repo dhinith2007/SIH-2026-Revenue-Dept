@@ -7,6 +7,7 @@ from app.schemas.common import BaseResponse
 from app.services.auth_service import AuthService
 from app.core.permissions import get_permissions_for_role
 from app.api.deps import get_auth_service, get_current_user
+from app.core.rate_limit import check_auth_rate_limit
 
 router = APIRouter()
 
@@ -39,6 +40,7 @@ router = APIRouter()
 def login(
     payload: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service),
+    _rate_limit: None = Depends(check_auth_rate_limit),
 ):
     user, token, expires_in = auth_service.authenticate(
         identifier=payload.identifier,
@@ -155,6 +157,7 @@ def reauthenticate_action(
     payload: ReauthRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
+    _rate_limit: None = Depends(check_auth_rate_limit),
 ):
     auth_service.reauthenticate(
         user_id=current_user["id"],

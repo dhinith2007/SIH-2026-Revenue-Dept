@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -89,7 +89,7 @@ class UserRepository:
         return None
 
     def update_last_login(self, user_id: str) -> None:
-        """Updates last_login_at timestamp and resets failed attempts."""
+        """Updates last_login_at timestamp and resets failed attempts and lockout state."""
         now = datetime.now(timezone.utc)
         if self.db and not self._should_skip_db():
             try:
@@ -97,6 +97,7 @@ class UserRepository:
                 if user:
                     user.last_login_at = now
                     user.failed_login_attempts = 0
+                    user.locked_until = None
                     self.db.commit()
                     return
             except SQLAlchemyError as exc:
@@ -106,6 +107,90 @@ class UserRepository:
         if user_id in _MEM_USERS:
             _MEM_USERS[user_id]["last_login_at"] = now
             _MEM_USERS[user_id]["failed_login_attempts"] = 0
+            _MEM_USERS[user_id]["locked_until"] = None
+
+    def record_failed_login(
+        self, user_id: str, lock_threshold: int = 5, lock_duration_minutes: int = 15
+    ) -> Dict[str, Any]:
+        """
+        Increments failed_login_attempts and applies account lockout if threshold reached.
+        Uses row-level locking (with_for_update) on PostgreSQL to prevent concurrency race conditions.
+        """
+        now = datetime.now(timezone.utc)
+
+        if self.db and not self._should_skip_db():
+            try:
+                user = (
+                    self.db.query(User)
+                    .filter(User.id == user_id)
+                    .with_for_update()
+                    .first()
+                )
+                if user:
+                    # If previous lock expired, reset counter before incrementing
+                    if user.locked_until:
+                        lu = user.locked_until
+                        if lu.tzinfo is None:
+                            lu = lu.replace(tzinfo=timezone.utc)
+                        if lu <= now:
+                            user.failed_login_attempts = 0
+                            user.locked_until = None
+
+                    user.failed_login_attempts += 1
+                    if user.failed_login_attempts >= lock_threshold:
+                        user.locked_until = now + timedelta(minutes=lock_duration_minutes)
+
+                    self.db.commit()
+                    res = self._to_dict(user)
+                    if user_id in _MEM_USERS:
+                        _MEM_USERS[user_id].update(res)
+                    return res
+            except SQLAlchemyError as exc:
+                self.db.rollback()
+                self._mark_db_failed()
+                logger.warning("DB commit failed for record_failed_login: %s", exc)
+
+        # In-memory synchronized fallback
+        if user_id in _MEM_USERS:
+            rec = _MEM_USERS[user_id]
+            lu = rec.get("locked_until")
+            if lu:
+                if isinstance(lu, str):
+                    try:
+                        lu = datetime.fromisoformat(lu.replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+                if isinstance(lu, datetime):
+                    if lu.tzinfo is None:
+                        lu = lu.replace(tzinfo=timezone.utc)
+                    if lu <= now:
+                        rec["failed_login_attempts"] = 0
+                        rec["locked_until"] = None
+
+            rec["failed_login_attempts"] = rec.get("failed_login_attempts", 0) + 1
+            if rec["failed_login_attempts"] >= lock_threshold:
+                rec["locked_until"] = now + timedelta(minutes=lock_duration_minutes)
+            return dict(rec)
+
+        return {"failed_login_attempts": 1, "locked_until": None}
+
+    def reset_failed_logins(self, user_id: str) -> None:
+        """Resets failed attempts and unlocks account."""
+        if self.db and not self._should_skip_db():
+            try:
+                user = self.db.query(User).filter(User.id == user_id).first()
+                if user:
+                    user.failed_login_attempts = 0
+                    user.locked_until = None
+                    self.db.commit()
+                    return
+            except SQLAlchemyError as exc:
+                self._mark_db_failed()
+                logger.warning("DB commit failed for reset_failed_logins: %s", exc)
+
+        if user_id in _MEM_USERS:
+            _MEM_USERS[user_id]["failed_login_attempts"] = 0
+            _MEM_USERS[user_id]["locked_until"] = None
 
     def list_all(self) -> List[Dict[str, Any]]:
         """Lists all department users."""

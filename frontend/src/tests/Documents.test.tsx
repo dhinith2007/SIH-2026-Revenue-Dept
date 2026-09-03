@@ -14,7 +14,7 @@ vi.mock('../services/api', () => ({
   },
 }));
 
-describe('Phase 06 — Document Verification UI Components', () => {
+describe('Phase 10 Step 05 — Document Verification UI & Confidence Integration', () => {
   const mockDocument: ProofDocumentMetadata = {
     document_id: 'DOC-REV-9081',
     application_id: 'GM-2026-000124',
@@ -37,6 +37,14 @@ describe('Phase 06 — Document Verification UI Components', () => {
       assistive_score: 1.0,
       matched_components_count: 7,
       total_components_count: 7,
+      ocr_confidence: 0.95,
+      match_confidence: 1.0,
+      overall_confidence: 0.96,
+      recommendation: 'HIGH_CONFIDENCE_MATCH',
+      evidence_quality: 'COMPLETE',
+      risk_flags: [],
+      reasons: ['All 6 address components match requested application address.'],
+      officer_guidance: 'Document evidence is highly consistent with application details. Proceed with standard officer statutory review.',
       field_confidences: {
         overall: 0.95,
         name: 0.97,
@@ -60,6 +68,7 @@ describe('Phase 06 — Document Verification UI Components', () => {
         document_reference: 'DOC-REV-9081',
       },
       is_simulated_ocr: true,
+      provider: 'SIMULATED',
     },
   };
 
@@ -91,7 +100,7 @@ describe('Phase 06 — Document Verification UI Components', () => {
     expect(handleClose).toHaveBeenCalled();
   });
 
-  it('renders DocumentVerificationDesk side-by-side comparison with confidence scores', () => {
+  it('renders DocumentVerificationDesk side-by-side comparison with confidence scores and disclaimer', () => {
     render(
       <DocumentVerificationDesk
         applicationId="GM-2026-000124"
@@ -114,20 +123,81 @@ describe('Phase 06 — Document Verification UI Components', () => {
 
     // Verify Title & Badges
     expect(screen.getByText(/Advanced Document Verification/i)).toBeDefined();
-    expect(screen.getByText('VALIDATED')).toBeDefined();
-    expect(screen.getByText(/Assistive Score:/i)).toBeDefined();
-    expect(screen.getByText('100%')).toBeDefined();
+    expect(screen.getByText('HIGH CONFIDENCE MATCH')).toBeDefined();
+    expect(screen.getByText(/Mandatory Statutory Principle:/i)).toBeDefined();
+    expect(screen.getByText(/AI\/OCR verification is assistive evidence analysis/i)).toBeDefined();
+    expect(screen.getByText('COMPLETE EVIDENCE')).toBeDefined();
 
-    // Field-level confidence scores
-    expect(screen.getByText('97%')).toBeDefined();
-    expect(screen.getByText('93%')).toBeDefined();
-    expect(screen.getByText('96%')).toBeDefined();
-    expect(screen.getByText('99%')).toBeDefined();
+    // Confidence scores
+    expect(screen.getByText('95%')).toBeDefined();
+    expect(screen.getByText('100%')).toBeDefined();
 
     // 6-part address table elements
     expect(screen.getAllByText('Citizen Name').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Taluka / Tehsil')).toBeDefined();
     expect(screen.getByText('Postal PIN Code')).toBeDefined();
+  });
+
+  it('renders risk flags and discrepancy banner when mismatch review recommended', () => {
+    const mismatchDoc: ProofDocumentMetadata = {
+      ...mockDocument,
+      verification_result: {
+        ...mockDocument.verification_result!,
+        match_status: 'MISMATCH',
+        recommendation: 'MISMATCH_REVIEW',
+        overall_confidence: 0.35,
+        risk_flags: ['PINCODE_MISMATCH'],
+        explanation: 'Postal PIN code mismatch detected: Application 411038 vs Document 411099.',
+        officer_guidance: 'Critical discrepancy detected in supporting document evidence.',
+      },
+    };
+
+    render(
+      <DocumentVerificationDesk
+        applicationId="GM-2026-000129"
+        citizenName="Rajesh Shantaram Patil"
+        requestedAddress={{ pincode: '411038' }}
+        documents={[mismatchDoc]}
+        isFinalized={false}
+        canVerify={true}
+        onRefresh={vi.fn()}
+        onShowToast={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('CRITICAL MISMATCH REVIEW')).toBeDefined();
+    expect(screen.getByText('Critical Discrepancy Detected')).toBeDefined();
+    expect(screen.getByText('PINCODE_MISMATCH')).toBeDefined();
+  });
+
+  it('renders OCR failure state banner without saying document rejected by AI', () => {
+    const failedDoc: ProofDocumentMetadata = {
+      ...mockDocument,
+      verification_result: {
+        ...mockDocument.verification_result!,
+        match_status: 'INVALID',
+        recommendation: 'INSUFFICIENT_EVIDENCE',
+        evidence_quality: 'FAILED',
+        explanation: 'OCR extraction failed due to corrupted file.',
+      },
+    };
+
+    render(
+      <DocumentVerificationDesk
+        applicationId="GM-2026-000130"
+        citizenName="Test Citizen"
+        requestedAddress={{}}
+        documents={[failedDoc]}
+        isFinalized={false}
+        canVerify={true}
+        onRefresh={vi.fn()}
+        onShowToast={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('OCR Extraction Could Not Complete')).toBeDefined();
+    expect(screen.getByText(/Review the original document manually/i)).toBeDefined();
+    expect(screen.queryByText(/Document rejected by AI/i)).toBeNull();
   });
 
   it('renders empty state when no documents are attached', () => {
@@ -163,7 +233,7 @@ describe('Phase 06 — Document Verification UI Components', () => {
     );
 
     // Open Manual Override Dialog
-    const overrideBtn = screen.getByText('Manual Override');
+    const overrideBtn = screen.getByText('Officer Override');
     fireEvent.click(overrideBtn);
 
     expect(screen.getByText(/Officer Manual Override/i)).toBeDefined();

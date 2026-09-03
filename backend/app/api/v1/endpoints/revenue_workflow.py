@@ -20,6 +20,7 @@ from app.schemas.workflow import (
 )
 from app.repositories.application_repository import ApplicationRepository
 from app.repositories.audit_repository import AuditRepository
+from app.repositories.consent_repository import ConsentRepository
 from app.services.consent_service import ConsentService
 from app.services.data_validation_service import DataValidationService
 from app.services.document_verification_service import DocumentVerificationService
@@ -27,6 +28,7 @@ from app.services.workflow_service import WorkflowService
 from app.api.deps import (
     get_application_repository,
     get_audit_repository,
+    get_consent_repository,
     get_workflow_service,
     get_current_user,
     require_permission,
@@ -53,6 +55,7 @@ async def verify_address(
     request: Request,
     payload: Dict[str, Any] = Body(..., example={"application_id": "GM-2026-000124"}),
     app_repo: ApplicationRepository = Depends(get_application_repository),
+    consent_repo: ConsentRepository = Depends(get_consent_repository),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     app_id = payload.get("application_id", "")
@@ -61,7 +64,7 @@ async def verify_address(
     if not app:
         raise ResourceNotFoundError(message=f"Application '{app_id}' not found.")
 
-    consent_res = ConsentService.validate_consent(app)
+    consent_res = ConsentService.validate_consent(app, consent_repo=consent_repo)
     data_res = DataValidationService.validate_application_data(app, app_repo.get_all_applications())
     doc_res = DocumentVerificationService.verify_document(app)
 
@@ -129,13 +132,14 @@ async def validate_consent_endpoint(
     request: Request,
     application_id: str,
     app_repo: ApplicationRepository = Depends(get_application_repository),
+    consent_repo: ConsentRepository = Depends(get_consent_repository),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     await check_simulated_failure(request, correlation_id=application_id)
     app = app_repo.get_by_application_id(application_id)
     if not app:
         raise ResourceNotFoundError(message=f"Application '{application_id}' not found.")
-    result = ConsentService.validate_consent(app)
+    result = ConsentService.validate_consent(app, consent_repo=consent_repo)
     return BaseResponse(
         success=True,
         data=result,
@@ -153,6 +157,7 @@ async def validate_consent_payload(
     request: Request,
     payload: Dict[str, Any] = Body(..., example={"application_id": "GM-2026-000124"}),
     app_repo: ApplicationRepository = Depends(get_application_repository),
+    consent_repo: ConsentRepository = Depends(get_consent_repository),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     app_id = payload.get("application_id", "")
@@ -160,7 +165,7 @@ async def validate_consent_payload(
     app = app_repo.get_by_application_id(app_id)
     if not app:
         raise ResourceNotFoundError(message=f"Application '{app_id}' not found.")
-    result = ConsentService.validate_consent(app)
+    result = ConsentService.validate_consent(app, consent_repo=consent_repo)
     return BaseResponse(
         success=True,
         data=result,

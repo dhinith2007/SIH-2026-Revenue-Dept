@@ -13,6 +13,9 @@ import {
   Info,
   ExternalLink,
   HelpCircle,
+  AlertOctagon,
+  ShieldAlert,
+  FileSearch,
 } from 'lucide-react';
 import {
   ProofDocumentMetadata,
@@ -175,6 +178,67 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
     }
   };
 
+  const getRecommendationBadge = (rec?: string) => {
+    switch (rec) {
+      case 'HIGH_CONFIDENCE_MATCH':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            HIGH CONFIDENCE MATCH
+          </span>
+        );
+      case 'MEDIUM_CONFIDENCE_REVIEW':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            MEDIUM CONFIDENCE REVIEW
+          </span>
+        );
+      case 'LOW_CONFIDENCE_REVIEW':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            LOW CONFIDENCE REVIEW
+          </span>
+        );
+      case 'MISMATCH_REVIEW':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+            <XCircle className="w-3.5 h-3.5" />
+            CRITICAL MISMATCH REVIEW
+          </span>
+        );
+      case 'INSUFFICIENT_EVIDENCE':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+            <FileSearch className="w-3.5 h-3.5" />
+            INSUFFICIENT EVIDENCE
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            AI RECOMMENDATION PENDING
+          </span>
+        );
+    }
+  };
+
+  const getEvidenceQualityBadge = (quality?: string) => {
+    switch (quality) {
+      case 'COMPLETE':
+        return <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">COMPLETE EVIDENCE</span>;
+      case 'PARTIAL':
+        return <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">PARTIAL EVIDENCE</span>;
+      case 'INSUFFICIENT':
+        return <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">INSUFFICIENT EVIDENCE</span>;
+      case 'FAILED':
+        return <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">OCR EXTRACTION FAILED</span>;
+      default:
+        return <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-800 text-slate-400">UNASSESSED</span>;
+    }
+  };
+
   const getComponentBadge = (status?: string) => {
     switch (status) {
       case 'MATCH':
@@ -193,6 +257,12 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
         return (
           <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
             MISMATCH
+          </span>
+        );
+      case 'UNAVAILABLE':
+        return (
+          <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-slate-800 text-slate-400 border border-slate-700">
+            UNAVAILABLE
           </span>
         );
       default:
@@ -225,7 +295,7 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
             <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
               Advanced Document Verification &amp; OCR Assistance
               <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded border border-indigo-500/30">
-                Phase 06
+                Phase 10 Step 05
               </span>
             </h3>
             <p className="text-xs text-slate-400">
@@ -260,6 +330,15 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
               Re-run AI/OCR
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Mandatory Statutory AI Disclaimer Banner (Section 3) */}
+      <div className="bg-indigo-950/40 border-b border-indigo-800/40 p-3 px-4 flex items-start gap-2 text-xs text-indigo-200" role="region" aria-label="AI Disclaimer">
+        <Info className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
+        <div>
+          <strong className="font-semibold text-indigo-300">Mandatory Statutory Principle:</strong>{' '}
+          AI/OCR verification is assistive evidence analysis. It does not make the statutory decision. The Revenue Officer remains responsible for the final decision.
         </div>
       </div>
 
@@ -370,7 +449,11 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
             </div>
 
             {/* Document Metadata Footer */}
-            <div className="mt-3 p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg text-xs space-y-1 text-slate-400">
+            <div className="mt-3 p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg text-xs space-y-1.5 text-slate-400">
+              <div className="flex justify-between">
+                <span>Document ID:</span>
+                <span className="text-slate-200 font-mono font-medium">{activeDoc.document_id}</span>
+              </div>
               <div className="flex justify-between">
                 <span>File Name:</span>
                 <span className="text-slate-200 font-medium truncate max-w-[200px]">
@@ -384,112 +467,149 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
                 </span>
               </div>
               <div className="flex justify-between">
+                <span>OCR Engine Provider:</span>
+                <span className="text-indigo-300 font-mono font-semibold">
+                  {verResult?.provider || 'SIMULATED'}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span>File Size:</span>
                 <span className="text-slate-200">{activeDoc.file_size || '1.2 MB'}</span>
               </div>
               {verResult?.manual_override && (
                 <div className="pt-2 border-t border-slate-800 mt-2 text-amber-400 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Manual override applied by {verResult.manual_override.officer_name}</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span>Manual override applied by {verResult.manual_override.officer_name} ({verResult.manual_override.decision})</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* ============================================================ */}
-          {/* Right Column: Extracted Fields & Component Matching (7 Cols) */}
+          {/* Right Column: AI Confidence, Recommendation & Matching (7 Cols) */}
           {/* ============================================================ */}
-          <div className="lg:col-span-7 p-4 flex flex-col justify-between">
+          <div className="lg:col-span-7 p-4 flex flex-col justify-between space-y-4">
             <div>
-              {/* Header Status & Assistive Score */}
+              {/* Header: AI Recommendation & Quality */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div>{getStatusBadge(verResult?.match_status || activeDoc.verification_status)}</div>
-                  {verResult?.assistive_score !== undefined && (
-                    <div className="text-xs text-slate-300 flex items-center gap-1.5 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                      Assistive Score:{' '}
-                      <span className="text-indigo-300 font-bold">
-                        {Math.round(verResult.assistive_score * 100)}%
-                      </span>
-                      <span className="text-slate-500 text-[11px]">
-                        ({verResult.matched_components_count ?? 6}/{verResult.total_components_count ?? 7} matched)
-                      </span>
-                    </div>
-                  )}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">
+                    Verification Recommendation
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {getStatusBadge(verResult?.match_status || activeDoc.verification_status)}
+                    {getRecommendationBadge(verResult?.recommendation || (verResult?.match_status === 'VALIDATED' ? 'HIGH_CONFIDENCE_MATCH' : 'MEDIUM_CONFIDENCE_REVIEW'))}
+                    {getEvidenceQualityBadge(verResult?.evidence_quality || 'COMPLETE')}
+                  </div>
                 </div>
 
                 {!isFinalized && canVerify && (
                   <button
                     onClick={() => setIsOverrideModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition-colors shadow-sm"
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-                    Manual Override
+                    Officer Override
                   </button>
                 )}
               </div>
 
-              {/* Explainable Rationale Alert */}
-              {verResult?.explanation && (
-                <div
-                  className={`mt-3 p-3 rounded-lg text-xs border ${
-                    verResult.match_status === 'VALIDATED'
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                      : verResult.match_status === 'MISMATCH'
-                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-300'
-                      : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <strong className="font-semibold block mb-0.5">
-                        Verification Explanation &amp; Rationale:
-                      </strong>
-                      <p className="leading-relaxed">{verResult.explanation}</p>
+              {/* Discrepancy Banner for Mismatch Safety (Section 6) */}
+              {(verResult?.recommendation === 'MISMATCH_REVIEW' || verResult?.match_status === 'MISMATCH') && (
+                <div className="mt-3 p-3 bg-rose-500/15 border border-rose-500/30 rounded-lg text-xs text-rose-200 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-rose-300 text-sm">
+                    <ShieldAlert className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    Critical Discrepancy Detected
+                  </div>
+                  <p className="leading-relaxed">
+                    {verResult?.explanation || 'Supporting document evidence does not match requested application details.'}
+                  </p>
+                  <p className="text-[11px] text-rose-300/80 italic pt-0.5">
+                    Officer Note: Decision controls remain fully authorized for human statutory review.
+                  </p>
+                </div>
+              )}
+
+              {/* OCR Extraction Failure State Banner (Section 13) */}
+              {verResult?.evidence_quality === 'FAILED' && (
+                <div className="mt-3 p-3 bg-red-950/40 border border-red-800/40 rounded-lg text-xs text-red-300 space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-red-200">
+                    <AlertOctagon className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    OCR Extraction Could Not Complete
+                  </div>
+                  <p className="leading-relaxed">
+                    Automatic extraction could not be completed for this proof file. Please review the original document manually using the preview inspector.
+                  </p>
+                </div>
+              )}
+
+              {/* Metric Separation Display: OCR vs Match vs Overall Confidence */}
+              <div className="mt-3 p-3 bg-slate-850 rounded-lg border border-slate-800 space-y-2">
+                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Confidence Engine Metric Separation</span>
+                  <span className="text-slate-500 text-[10px] font-mono">Assistive Score: {Math.round((verResult?.assistive_score ?? 1.0) * 100)}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-slate-900 p-2 rounded border border-slate-800 text-center">
+                    <div className="text-[10px] text-slate-400">OCR Confidence</div>
+                    <div className="text-sm font-bold text-indigo-400 mt-0.5">
+                      {Math.round((verResult?.ocr_confidence ?? (verResult?.field_confidences?.overall || 0.95)) * 100)}%
                     </div>
+                  </div>
+                  <div className="bg-slate-900 p-2 rounded border border-slate-800 text-center">
+                    <div className="text-[10px] text-slate-400">Match Confidence</div>
+                    <div className="text-sm font-bold text-emerald-400 mt-0.5">
+                      {Math.round((verResult?.match_confidence ?? (verResult?.assistive_score || 1.0)) * 100)}%
+                    </div>
+                  </div>
+                  <div className="bg-slate-900 p-2 rounded border border-slate-800 text-center">
+                    <div className="text-[10px] text-slate-400">Overall Confidence</div>
+                    <div className="text-sm font-bold text-amber-300 mt-0.5">
+                      {Math.round((verResult?.overall_confidence ?? 0.95) * 100)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Flags Section (Section 2 E) */}
+              {verResult?.risk_flags && verResult.risk_flags.length > 0 && (
+                <div className="mt-3 p-3 bg-slate-950/60 rounded-lg border border-slate-800">
+                  <div className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    Detected Evidence Risk Flags ({verResult.risk_flags.length})
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {verResult.risk_flags.map((flag) => (
+                      <span
+                        key={flag}
+                        className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                      >
+                        {flag}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* OCR Confidence Metrics */}
-              {verResult?.field_confidences && (
-                <div className="mt-3 p-2.5 bg-slate-850 rounded-lg border border-slate-800">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>Field-Level OCR Confidence Scores</span>
-                    <span className="text-slate-500 font-normal">Deterministic Engine</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="bg-slate-900/90 p-2 rounded border border-slate-800 text-center">
-                      <div className="text-[10px] text-slate-400">Citizen Name</div>
-                      <div className="text-xs font-bold text-emerald-400 mt-0.5">
-                        {Math.round((verResult.field_confidences.name || 0.97) * 100)}%
-                      </div>
-                    </div>
-                    <div className="bg-slate-900/90 p-2 rounded border border-slate-800 text-center">
-                      <div className="text-[10px] text-slate-400">Full Address</div>
-                      <div className="text-xs font-bold text-emerald-400 mt-0.5">
-                        {Math.round((verResult.field_confidences.address || 0.93) * 100)}%
-                      </div>
-                    </div>
-                    <div className="bg-slate-900/90 p-2 rounded border border-slate-800 text-center">
-                      <div className="text-[10px] text-slate-400">Taluka Field</div>
-                      <div className="text-xs font-bold text-emerald-400 mt-0.5">
-                        {Math.round((verResult.field_confidences.taluka || 0.96) * 100)}%
-                      </div>
-                    </div>
-                    <div className="bg-slate-900/90 p-2 rounded border border-slate-800 text-center">
-                      <div className="text-[10px] text-slate-400">Postal PIN</div>
-                      <div className="text-xs font-bold text-emerald-400 mt-0.5">
-                        {Math.round((verResult.field_confidences.pincode || 0.99) * 100)}%
-                      </div>
-                    </div>
-                  </div>
+              {/* Officer Guidance Box (Section 2 F) */}
+              <div className="mt-3 p-3 bg-slate-850 rounded-lg border border-slate-800 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-200 font-semibold mb-1">
+                  <Sparkles className="w-4 h-4 text-indigo-400" />
+                  Officer Review Guidance:
                 </div>
-              )}
+                <p className="text-slate-300 leading-relaxed">
+                  {verResult?.officer_guidance || verResult?.explanation || 'Document evidence is consistent with application details. Proceed with standard officer statutory review.'}
+                </p>
+                {verResult?.reasons && verResult.reasons.length > 0 && (
+                  <ul className="mt-1 list-disc list-inside text-slate-400 space-y-0.5 text-[11px]">
+                    {verResult.reasons.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-              {/* 6-Part Address & Name Component Comparison Table */}
+              {/* Field-by-Field Comparison Table (Section 2 D) */}
               <div className="mt-4">
                 <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center justify-between">
                   <span>Component-by-Component Evaluation Matrix</span>
@@ -511,7 +631,7 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
                     <tbody className="divide-y divide-slate-800 bg-slate-900/60 text-slate-300">
                       {/* Name Row */}
                       <tr className="hover:bg-slate-850/50 transition-colors">
-                        <td className="py-2 px-3 font-medium text-slate-200 flex items-center gap-1.5">
+                        <td className="py-2 px-3 font-medium text-slate-200">
                           Citizen Name
                         </td>
                         <td className="py-2 px-3 font-mono text-[11px] text-slate-300">{citizenName}</td>
@@ -558,7 +678,7 @@ export const DocumentVerificationDesk: React.FC<DocumentVerificationDeskProps> =
                 <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
                 AI/OCR provides assistive analysis only • Officer decision is final &amp; binding.
               </span>
-              <span className="font-mono text-[10px]">Model: SimOCR v1.2</span>
+              <span className="font-mono text-[10px]">Engine Provider: {verResult?.provider || 'SIMULATED'}</span>
             </div>
           </div>
         </div>

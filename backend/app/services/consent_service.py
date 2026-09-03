@@ -1,6 +1,7 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from app.schemas.workflow import ConsentValidationResult
+from app.repositories.consent_repository import ConsentRepository
 from app.core.logging import logger
 
 # Recognized Revenue Department Recipient tokens
@@ -34,22 +35,57 @@ AUTHORIZED_DATA_SCOPES = {
 
 class ConsentService:
     @staticmethod
-    def validate_consent(app_dict: Dict[str, Any], consent_override: Dict[str, Any] = None) -> ConsentValidationResult:
+    def validate_consent(
+        app_dict: Dict[str, Any],
+        consent_override: Optional[Dict[str, Any]] = None,
+        consent_repo: Optional[Any] = None,
+    ) -> ConsentValidationResult:
         """
         Authoritatively evaluates Rules 1 through 8 for Citizen Consent.
+        Enforces database synchronization (SEC-02): runtime validation queries PostgreSQL
+        via ConsentRepository, ensuring client payloads cannot spoof valid consent.
         """
         app_id = app_dict.get("application_id", "")
         consent_ref = app_dict.get("consent_reference", "").strip()
         purpose = app_dict.get("purpose", "").strip()
         requested_op = app_dict.get("requested_operation", "").strip()
 
-        # Seed/DB consent details or defaults
-        c_record = consent_override or app_dict.get("consent_record", {})
+        repo = consent_repo or ConsentRepository()
+
+        # SEC-02: Query authoritative repository/DB record first
+        db_record = None
+        if consent_ref and repo:
+            try:
+                db_record = repo.get_by_reference(consent_ref)
+            except Exception as e:
+                logger.warning("Error fetching consent '%s' from repository: %s", consent_ref, e)
+
+        # Hierarchy: explicit test consent_override > DB record > app payload consent_record
+        if consent_override:
+            c_record = consent_override
+        elif db_record:
+            c_record = db_record
+        else:
+            c_record = app_dict.get("consent_record", {})
+
         status = c_record.get("status", "VALID").upper()
         recipient = c_record.get("recipient", "Revenue & Forest Department").strip()
         data_scope = c_record.get("data_scope", "address.change").strip()
+        purpose_val = c_record.get("purpose") or purpose or "Address Record Updation"
         expires_at = c_record.get("expires_at")
         revoked_at = c_record.get("revoked_at")
+
+        if expires_at and isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+        if revoked_at and isinstance(revoked_at, str):
+            try:
+                revoked_at = datetime.fromisoformat(revoked_at.replace("Z", "+00:00"))
+            except Exception:
+                pass
 
         now = datetime.now(timezone.utc)
         errors: List[str] = []
@@ -99,7 +135,7 @@ class ConsentService:
             rules["rule_5_not_revoked"] = "PASSED"
 
         # RULE 6: Purpose matches requested operation
-        purpose_lower = purpose.lower()
+        purpose_lower = (purpose or purpose_val).lower()
         op_lower = requested_op.lower()
         if not any(k in purpose_lower or k in op_lower for k in ("address", "revenue", "land", "residence", "update")):
             errors.append("Rule 6 Failed: Consent purpose does not match requested operation.")
@@ -124,6 +160,17 @@ class ConsentService:
         is_valid = len(errors) == 0
         final_status = "VALID" if is_valid else (status if status != "VALID" else "INVALID")
 
+        # Record validation audit result back to repository/DB (SEC-02 synchronization)
+        if consent_ref and repo:
+            try:
+                repo.update_validation_result(
+                    consent_reference=consent_ref,
+                    status=final_status,
+                    validation_result={"rules_evaluated": rules, "errors": errors, "valid": is_valid},
+                )
+            except Exception as exc:
+                logger.warning("Failed to record validation result for consent '%s': %s", consent_ref, exc)
+
         logger.info(
             "Consent evaluation for app '%s' (ref: %s): valid=%s, status=%s",
             app_id,
@@ -137,7 +184,7 @@ class ConsentService:
             application_id=app_id,
             valid=is_valid,
             status=final_status,
-            purpose=purpose or "Address Record Updation",
+            purpose=purpose or purpose_val,
             data_scope=data_scope,
             recipient=recipient,
             expires_at=expires_at,

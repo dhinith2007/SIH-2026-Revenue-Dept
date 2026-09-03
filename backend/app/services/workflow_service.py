@@ -22,10 +22,12 @@ class WorkflowService:
         app_repo: ApplicationRepository,
         audit_repo: AuditRepository,
         notif_repo: Optional[Any] = None,
+        consent_repo: Optional[Any] = None,
     ):
         self.app_repo = app_repo
         self.audit_repo = audit_repo
         self.notif_repo = notif_repo
+        self.consent_repo = consent_repo
 
     def _emit_notif(
         self,
@@ -75,15 +77,6 @@ class WorkflowService:
         now = datetime.now(timezone.utc)
         corr_id = app.get("correlation_id", "CORR-NONE")
 
-        # 1. Update application state
-        updated_app = self.app_repo.update_application_status(
-            application_id=application_id,
-            new_status="PROCESSING",
-            assigned_officer_id=officer_id,
-            processing_started_at=now,
-        )
-
-        # 2. Append timeline milestone
         timeline_event = {
             "step_name": "Desk Scrutiny Started",
             "actor": f"{officer_name} ({officer_id})",
@@ -91,28 +84,48 @@ class WorkflowService:
             "timestamp": now.isoformat(),
             "notes": "Officer initiated formal address change scrutiny and document review.",
         }
-        self.app_repo.append_workflow_event(application_id, timeline_event)
 
-        # 3. Record status history & immutable audit log
-        self.audit_repo.record_status_history(
-            application_id=application_id,
-            previous_status=current_status,
-            new_status="PROCESSING",
-            action="START_REVIEW",
-            changed_by=officer_name,
-            reason="Desk scrutiny initiated by officer",
-            correlation_id=corr_id,
-        )
-        self.audit_repo.create_audit_entry(
-            officer_id=officer_id,
-            officer_name=officer_name,
-            application_id=application_id,
-            action="START_REVIEW",
-            previous_status=current_status,
-            new_status="PROCESSING",
-            reason="Review initiated",
-            correlation_id=corr_id,
-        )
+        try:
+            # 1. Update application state
+            updated_app = self.app_repo.update_application_status(
+                application_id=application_id,
+                new_status="PROCESSING",
+                assigned_officer_id=officer_id,
+                processing_started_at=now,
+                auto_commit=False,
+            )
+
+            # 2. Append timeline milestone
+            self.app_repo.append_workflow_event(application_id, timeline_event, auto_commit=False)
+
+            # 3. Record status history & immutable audit log
+            self.audit_repo.record_status_history(
+                application_id=application_id,
+                previous_status=current_status,
+                new_status="PROCESSING",
+                action="START_REVIEW",
+                changed_by=officer_name,
+                reason="Desk scrutiny initiated by officer",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            self.audit_repo.create_audit_entry(
+                officer_id=officer_id,
+                officer_name=officer_name,
+                application_id=application_id,
+                action="START_REVIEW",
+                previous_status=current_status,
+                new_status="PROCESSING",
+                reason="Review initiated",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            if self.app_repo.db:
+                self.app_repo.db.commit()
+        except Exception:
+            if self.app_repo.db:
+                self.app_repo.db.rollback()
+            raise
 
         return updated_app or self.app_repo.get_by_application_id(application_id)
 
@@ -133,7 +146,7 @@ class WorkflowService:
             )
 
         # Backend Authoritative Check 1: Consent
-        consent_result = ConsentService.validate_consent(app)
+        consent_result = ConsentService.validate_consent(app, consent_repo=self.consent_repo)
         if not consent_result.valid:
             logger.warning("Approval blocked: Consent invalid for '%s'", application_id)
             raise ConsentInvalidError(
@@ -167,16 +180,6 @@ class WorkflowService:
         corr_id = app.get("correlation_id", "CORR-NONE")
         approval_reason = reason.strip() if reason and reason.strip() else "Address proof matches requested residence record and Taluka land registry."
 
-        # 1. Update application status
-        updated_app = self.app_repo.update_application_status(
-            application_id=application_id,
-            new_status="VERIFIED",
-            assigned_officer_id=officer_id,
-            completed_at=now,
-            required_action="Application verified & approved by Revenue Officer.",
-        )
-
-        # 2. Append timeline milestone
         timeline_event = {
             "step_name": "Revenue Officer Approval",
             "actor": f"{officer_name} ({officer_id})",
@@ -184,34 +187,55 @@ class WorkflowService:
             "timestamp": now.isoformat(),
             "notes": approval_reason,
         }
-        self.app_repo.append_workflow_event(application_id, timeline_event)
 
-        # 3. Record status history & immutable audit log
-        self.audit_repo.record_status_history(
-            application_id=application_id,
-            previous_status=current_status,
-            new_status="VERIFIED",
-            action="APPROVED",
-            changed_by=officer_name,
-            reason=approval_reason,
-            correlation_id=corr_id,
-        )
-        self.audit_repo.create_audit_entry(
-            officer_id=officer_id,
-            officer_name=officer_name,
-            application_id=application_id,
-            action="APPROVE",
-            previous_status=current_status,
-            new_status="VERIFIED",
-            reason=approval_reason,
-            correlation_id=corr_id,
-            details={
-                "consent_ref": app.get("consent_reference"),
-                "new_address": app.get("data_payload", {}).get("new_address"),
-            },
-        )
+        try:
+            # 1. Update application status
+            updated_app = self.app_repo.update_application_status(
+                application_id=application_id,
+                new_status="VERIFIED",
+                assigned_officer_id=officer_id,
+                completed_at=now,
+                required_action="Application verified & approved by Revenue Officer.",
+                auto_commit=False,
+            )
 
-        # 4. Department notification
+            # 2. Append timeline milestone
+            self.app_repo.append_workflow_event(application_id, timeline_event, auto_commit=False)
+
+            # 3. Record status history & immutable audit log
+            self.audit_repo.record_status_history(
+                application_id=application_id,
+                previous_status=current_status,
+                new_status="VERIFIED",
+                action="APPROVED",
+                changed_by=officer_name,
+                reason=approval_reason,
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            self.audit_repo.create_audit_entry(
+                officer_id=officer_id,
+                officer_name=officer_name,
+                application_id=application_id,
+                action="APPROVE",
+                previous_status=current_status,
+                new_status="VERIFIED",
+                reason=approval_reason,
+                correlation_id=corr_id,
+                details={
+                    "consent_ref": app.get("consent_reference"),
+                    "new_address": app.get("data_payload", {}).get("new_address"),
+                },
+                auto_commit=False,
+            )
+            if self.app_repo.db:
+                self.app_repo.db.commit()
+        except Exception:
+            if self.app_repo.db:
+                self.app_repo.db.rollback()
+            raise
+
+        # 4. Department notification (fire and forget outside critical transaction)
         self._emit_notif(
             notif_type="WORKFLOW_COMPLETION",
             application_id=application_id,
@@ -250,16 +274,6 @@ class WorkflowService:
         corr_id = app.get("correlation_id", "CORR-NONE")
         rejection_reason = reason.strip()
 
-        # 1. Update application status
-        updated_app = self.app_repo.update_application_status(
-            application_id=application_id,
-            new_status="REJECTED",
-            assigned_officer_id=officer_id,
-            completed_at=now,
-            required_action=f"Application rejected. Reason: {rejection_reason}",
-        )
-
-        # 2. Append timeline milestone
         timeline_event = {
             "step_name": "Revenue Officer Rejection",
             "actor": f"{officer_name} ({officer_id})",
@@ -267,30 +281,51 @@ class WorkflowService:
             "timestamp": now.isoformat(),
             "notes": rejection_reason,
         }
-        self.app_repo.append_workflow_event(application_id, timeline_event)
 
-        # 3. Record status history & immutable audit log
-        self.audit_repo.record_status_history(
-            application_id=application_id,
-            previous_status=current_status,
-            new_status="REJECTED",
-            action="REJECTED",
-            changed_by=officer_name,
-            reason=rejection_reason,
-            correlation_id=corr_id,
-        )
-        self.audit_repo.create_audit_entry(
-            officer_id=officer_id,
-            officer_name=officer_name,
-            application_id=application_id,
-            action="REJECT",
-            previous_status=current_status,
-            new_status="REJECTED",
-            reason=rejection_reason,
-            correlation_id=corr_id,
-        )
+        try:
+            # 1. Update application status
+            updated_app = self.app_repo.update_application_status(
+                application_id=application_id,
+                new_status="REJECTED",
+                assigned_officer_id=officer_id,
+                completed_at=now,
+                required_action=f"Application rejected. Reason: {rejection_reason}",
+                auto_commit=False,
+            )
 
-        # 4. Department notification
+            # 2. Append timeline milestone
+            self.app_repo.append_workflow_event(application_id, timeline_event, auto_commit=False)
+
+            # 3. Record status history & immutable audit log
+            self.audit_repo.record_status_history(
+                application_id=application_id,
+                previous_status=current_status,
+                new_status="REJECTED",
+                action="REJECTED",
+                changed_by=officer_name,
+                reason=rejection_reason,
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            self.audit_repo.create_audit_entry(
+                officer_id=officer_id,
+                officer_name=officer_name,
+                application_id=application_id,
+                action="REJECT",
+                previous_status=current_status,
+                new_status="REJECTED",
+                reason=rejection_reason,
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            if self.app_repo.db:
+                self.app_repo.db.commit()
+        except Exception:
+            if self.app_repo.db:
+                self.app_repo.db.rollback()
+            raise
+
+        # 4. Department notification (fire and forget)
         self._emit_notif(
             notif_type="WORKFLOW_COMPLETION",
             application_id=application_id,
@@ -330,15 +365,6 @@ class WorkflowService:
         req_msg = message.strip()
         req_action_desc = f"Citizen Information Required [{request_type}]: {req_msg}"
 
-        # 1. Update application status
-        updated_app = self.app_repo.update_application_status(
-            application_id=application_id,
-            new_status="ACTION_REQUIRED",
-            assigned_officer_id=officer_id,
-            required_action=req_action_desc,
-        )
-
-        # 2. Append timeline milestone
         timeline_event = {
             "step_name": f"Department Query Raised ({request_type})",
             "actor": f"{officer_name} ({officer_id})",
@@ -346,31 +372,51 @@ class WorkflowService:
             "timestamp": now.isoformat(),
             "notes": req_msg,
         }
-        self.app_repo.append_workflow_event(application_id, timeline_event)
 
-        # 3. Record status history & immutable audit log
-        self.audit_repo.record_status_history(
-            application_id=application_id,
-            previous_status=current_status,
-            new_status="ACTION_REQUIRED",
-            action="INFORMATION_REQUESTED",
-            changed_by=officer_name,
-            reason=f"[{request_type}] {req_msg}",
-            correlation_id=corr_id,
-        )
-        self.audit_repo.create_audit_entry(
-            officer_id=officer_id,
-            officer_name=officer_name,
-            application_id=application_id,
-            action="REQUEST_INFORMATION",
-            previous_status=current_status,
-            new_status="ACTION_REQUIRED",
-            reason=f"[{request_type}] {req_msg}",
-            correlation_id=corr_id,
-            details={"request_type": request_type, "message": req_msg},
-        )
+        try:
+            # 1. Update application status
+            updated_app = self.app_repo.update_application_status(
+                application_id=application_id,
+                new_status="ACTION_REQUIRED",
+                assigned_officer_id=officer_id,
+                required_action=req_action_desc,
+                auto_commit=False,
+            )
 
-        # 4. Department notification
+            # 2. Append timeline milestone
+            self.app_repo.append_workflow_event(application_id, timeline_event, auto_commit=False)
+
+            # 3. Record status history & immutable audit log
+            self.audit_repo.record_status_history(
+                application_id=application_id,
+                previous_status=current_status,
+                new_status="ACTION_REQUIRED",
+                action="INFORMATION_REQUESTED",
+                changed_by=officer_name,
+                reason=f"[{request_type}] {req_msg}",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            self.audit_repo.create_audit_entry(
+                officer_id=officer_id,
+                officer_name=officer_name,
+                application_id=application_id,
+                action="REQUEST_INFORMATION",
+                previous_status=current_status,
+                new_status="ACTION_REQUIRED",
+                reason=f"[{request_type}] {req_msg}",
+                correlation_id=corr_id,
+                details={"request_type": request_type, "message": req_msg},
+                auto_commit=False,
+            )
+            if self.app_repo.db:
+                self.app_repo.db.commit()
+        except Exception:
+            if self.app_repo.db:
+                self.app_repo.db.rollback()
+            raise
+
+        # 4. Department notification (fire and forget)
         self._emit_notif(
             notif_type="ACTION_REQUIRED",
             application_id=application_id,
@@ -405,15 +451,6 @@ class WorkflowService:
         now = datetime.now(timezone.utc)
         corr_id = app.get("correlation_id", "CORR-NONE")
 
-        # 1. Update application status
-        updated_app = self.app_repo.update_application_status(
-            application_id=application_id,
-            new_status="PROCESSING",
-            assigned_officer_id=officer_id,
-            required_action="Re-verification in progress following citizen information submission.",
-        )
-
-        # 2. Append timeline milestone
         timeline_event = {
             "step_name": "Citizen Response Ingested (Reprocessing)",
             "actor": "Citizen (via GovMesh Channel)",
@@ -421,30 +458,50 @@ class WorkflowService:
             "timestamp": now.isoformat(),
             "notes": "Supplementary address proof document submitted for desk re-scrutiny.",
         }
-        self.app_repo.append_workflow_event(application_id, timeline_event)
 
-        # 3. Record status history & immutable audit log
-        self.audit_repo.record_status_history(
-            application_id=application_id,
-            previous_status="ACTION_REQUIRED",
-            new_status="PROCESSING",
-            action="REPROCESSED",
-            changed_by=officer_name,
-            reason="Citizen uploaded supplementary document",
-            correlation_id=corr_id,
-        )
-        self.audit_repo.create_audit_entry(
-            officer_id=officer_id,
-            officer_name=officer_name,
-            application_id=application_id,
-            action="REPROCESS",
-            previous_status="ACTION_REQUIRED",
-            new_status="PROCESSING",
-            reason="Reprocessing initiated",
-            correlation_id=corr_id,
-        )
+        try:
+            # 1. Update application status
+            updated_app = self.app_repo.update_application_status(
+                application_id=application_id,
+                new_status="PROCESSING",
+                assigned_officer_id=officer_id,
+                required_action="Re-verification in progress following citizen information submission.",
+                auto_commit=False,
+            )
 
-        # 4. Department notification
+            # 2. Append timeline milestone
+            self.app_repo.append_workflow_event(application_id, timeline_event, auto_commit=False)
+
+            # 3. Record status history & immutable audit log
+            self.audit_repo.record_status_history(
+                application_id=application_id,
+                previous_status="ACTION_REQUIRED",
+                new_status="PROCESSING",
+                action="REPROCESSED",
+                changed_by=officer_name,
+                reason="Citizen uploaded supplementary document",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            self.audit_repo.create_audit_entry(
+                officer_id=officer_id,
+                officer_name=officer_name,
+                application_id=application_id,
+                action="REPROCESS",
+                previous_status="ACTION_REQUIRED",
+                new_status="PROCESSING",
+                reason="Reprocessing initiated",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            if self.app_repo.db:
+                self.app_repo.db.commit()
+        except Exception:
+            if self.app_repo.db:
+                self.app_repo.db.rollback()
+            raise
+
+        # 4. Department notification (fire and forget)
         self._emit_notif(
             notif_type="CITIZEN_RESPONSE",
             application_id=application_id,
@@ -474,17 +531,8 @@ class WorkflowService:
 
         now = datetime.now(timezone.utc)
         corr_id = app.get("correlation_id", "CORR-NONE")
-
-        # 1. Transition status back to PROCESSING or PENDING
         target_status = "PROCESSING" if current_status != "PENDING" else "PENDING"
-        updated_app = self.app_repo.update_application_status(
-            application_id=application_id,
-            new_status=target_status,
-            assigned_officer_id=officer_id,
-            required_action="Desk scrutiny resumed following controlled failure retry.",
-        )
 
-        # 2. Append timeline milestone
         timeline_event = {
             "step_name": "Controlled Operational Retry Ingested",
             "actor": f"{officer_name} ({officer_id})",
@@ -492,30 +540,50 @@ class WorkflowService:
             "timestamp": now.isoformat(),
             "notes": "Operational retry executed. Verification checks re-evaluated without duplicating record.",
         }
-        self.app_repo.append_workflow_event(application_id, timeline_event)
 
-        # 3. Record status history & immutable audit log
-        self.audit_repo.record_status_history(
-            application_id=application_id,
-            previous_status=current_status,
-            new_status=target_status,
-            action="RETRY_RECEIVED",
-            changed_by=officer_name,
-            reason="Controlled operational retry initiated",
-            correlation_id=corr_id,
-        )
-        self.audit_repo.create_audit_entry(
-            officer_id=officer_id,
-            officer_name=officer_name,
-            application_id=application_id,
-            action="RETRY",
-            previous_status=current_status,
-            new_status=target_status,
-            reason="Operational retry initiated",
-            correlation_id=corr_id,
-        )
+        try:
+            # 1. Transition status back to PROCESSING or PENDING
+            updated_app = self.app_repo.update_application_status(
+                application_id=application_id,
+                new_status=target_status,
+                assigned_officer_id=officer_id,
+                required_action="Desk scrutiny resumed following controlled failure retry.",
+                auto_commit=False,
+            )
 
-        # 4. Department notification
+            # 2. Append timeline milestone
+            self.app_repo.append_workflow_event(application_id, timeline_event, auto_commit=False)
+
+            # 3. Record status history & immutable audit log
+            self.audit_repo.record_status_history(
+                application_id=application_id,
+                previous_status=current_status,
+                new_status=target_status,
+                action="RETRY_RECEIVED",
+                changed_by=officer_name,
+                reason="Controlled operational retry initiated",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            self.audit_repo.create_audit_entry(
+                officer_id=officer_id,
+                officer_name=officer_name,
+                application_id=application_id,
+                action="RETRY",
+                previous_status=current_status,
+                new_status=target_status,
+                reason="Operational retry initiated",
+                correlation_id=corr_id,
+                auto_commit=False,
+            )
+            if self.app_repo.db:
+                self.app_repo.db.commit()
+        except Exception:
+            if self.app_repo.db:
+                self.app_repo.db.rollback()
+            raise
+
+        # 4. Department notification (fire and forget)
         self._emit_notif(
             notif_type="RETRY_RECEIVED",
             application_id=application_id,
