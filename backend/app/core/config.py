@@ -51,10 +51,17 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
     DB_TIMEOUT_SECONDS: int = 5
 
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def assemble_database_url(cls, v: str) -> str:
+        if v and v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
+        return v
+
     # Transport & HTTP Security (Phase 09 Step 05)
     ENABLE_HSTS: bool = False
     ENABLE_DOCS: bool = True
-    ALLOWED_HOSTS: List[str] = ["*"]
+    ALLOWED_HOSTS: Union[List[str], str] = ["*"]
 
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
@@ -66,7 +73,7 @@ class Settings(BaseSettings):
         return ["*"]
 
     # CORS Configuration
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",

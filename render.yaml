@@ -1,0 +1,34 @@
+# ==============================================================================
+# GovMesh SIH26129: Revenue & Forest Department - Render Blueprint Specification
+# ==============================================================================
+
+services:
+  - type: web
+    name: sih-2026-revenue-dept
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: revenue-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://sih-26129-gov-mesh-citizen.vercel.app,http://localhost:5173,http://localhost:3000
+      - key: OCR_PROVIDER
+        value: SIMULATED
+      - key: ENABLE_DOCS
+        value: "true"
+
+databases:
+  - name: revenue-db
+    databaseName: revenue_db
+    user: postgres
+    plan: free
+    region: oregon
