@@ -195,6 +195,15 @@ def test_request_information_transitions_to_action_required(client):
 
 def test_reprocess_application_transitions_to_processing(client):
     token = get_officer_token(client)
+    # Transition to ACTION_REQUIRED first
+    client.post(
+        "/api/v1/revenue/application/GM-2026-000128/request-info",
+        json={
+            "request_type": "NEW_DOCUMENT",
+            "message": "Please provide a valid utility bill for the new address.",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
     response = client.post(
         "/api/v1/revenue/application/GM-2026-000128/reprocess",
         headers={"Authorization": f"Bearer {token}"},

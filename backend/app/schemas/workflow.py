@@ -145,8 +145,21 @@ class AddressVerificationResponse(BaseModel):
     applicationId: str
     status: str
     department: str = "REVENUE"
-    validation: Dict[str, str]
+    validation: Dict[str, str] = Field(default_factory=dict)
     message: Optional[str] = None
+    acknowledgementId: Optional[str] = None
+    correlationId: Optional[str] = None
+    requestVersion: Optional[int] = 1
+    requestHash: Optional[str] = None
+    documentHash: Optional[str] = None
+    hashStatus: Optional[str] = "VERIFIED"
+    receivedAt: Optional[str] = None
+    validatedAt: Optional[str] = None
+    acceptedAt: Optional[str] = None
+    completedAt: Optional[str] = None
+    sentAt: Optional[str] = None
+    createdAt: Optional[str] = None
+
 
 
 class AuditLogEntry(BaseModel):

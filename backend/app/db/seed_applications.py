@@ -890,10 +890,13 @@ SYNTHETIC_APPLICATIONS: List[Dict[str, Any]] = [
 ]
 
 
+import copy
+
 def get_seeded_applications() -> List[Dict[str, Any]]:
-    """Returns synthetic applications with fresh timestamps."""
-    return SYNTHETIC_APPLICATIONS
+    """Returns synthetic applications with fresh unmutated copies."""
+    return copy.deepcopy(SYNTHETIC_APPLICATIONS)
 
 
 # Backward compatibility alias
 DEMO_APPLICATIONS = SYNTHETIC_APPLICATIONS
+

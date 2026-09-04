@@ -40,10 +40,12 @@ from app.services.workflow_service import WorkflowService
 @pytest.fixture(autouse=True)
 def reset_db_state():
     """Restores baseline deterministic demo seed before each test."""
-    if is_db_available():
-        with SessionLocal() as db:
-            seed_database(db=db, refresh_apps=True)
+    if not is_db_available():
+        pytest.skip("PostgreSQL database is not reachable in this test environment")
+    with SessionLocal() as db:
+        seed_database(db=db, refresh_apps=True)
     yield
+
 
 
 def get_auth_token(client, identifier: str, password: str) -> str:

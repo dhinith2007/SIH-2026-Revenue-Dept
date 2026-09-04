@@ -14,7 +14,7 @@ class Formatter(logging.Formatter):
 
 def setup_logging() -> logging.Logger:
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] [%(service)s] - %(message)s"
-    formatter = logging.Formatter(log_format)
+    formatter = Formatter(log_format)
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)

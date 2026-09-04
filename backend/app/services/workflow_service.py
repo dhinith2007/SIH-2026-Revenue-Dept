@@ -14,6 +14,7 @@ from app.core.errors import (
     DocumentMismatchError,
 )
 from app.core.logging import logger
+from app.services.revenue_callback_service import revenue_callback_service
 
 
 class WorkflowService:
@@ -127,7 +128,19 @@ class WorkflowService:
                 self.app_repo.db.rollback()
             raise
 
+        revenue_callback_service.send_status_update_async(
+            application_id=application_id,
+            status="PROCESSING",
+            correlation_id=corr_id,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            remarks="Desk scrutiny initiated by Revenue officer",
+            request_hash=app.get("data_payload", {}).get("canonical_hash"),
+            document_hash=app.get("data_payload", {}).get("document_hash"),
+        )
+
         return updated_app or self.app_repo.get_by_application_id(application_id)
+
 
     def approve_application(
         self, application_id: str, reason: Optional[str], officer_id: str, officer_name: str
@@ -245,6 +258,17 @@ class WorkflowService:
             target_role="ALL",
         )
 
+        revenue_callback_service.send_status_update_async(
+            application_id=application_id,
+            status="VERIFIED",
+            correlation_id=corr_id,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            remarks=approval_reason,
+            request_hash=app.get("data_payload", {}).get("canonical_hash"),
+            document_hash=app.get("data_payload", {}).get("document_hash"),
+        )
+
         logger.info("Application '%s' successfully APPROVED by %s", application_id, officer_name)
         return updated_app or self.app_repo.get_by_application_id(application_id)
 
@@ -335,8 +359,20 @@ class WorkflowService:
             target_role="ALL",
         )
 
+        revenue_callback_service.send_status_update_async(
+            application_id=application_id,
+            status="REJECTED",
+            correlation_id=corr_id,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            remarks=rejection_reason,
+            request_hash=app.get("data_payload", {}).get("canonical_hash"),
+            document_hash=app.get("data_payload", {}).get("document_hash"),
+        )
+
         logger.info("Application '%s' REJECTED by %s. Reason: %s", application_id, officer_name, rejection_reason)
         return updated_app or self.app_repo.get_by_application_id(application_id)
+
 
     def request_additional_information(
         self, application_id: str, request_type: str, message: str, officer_id: str, officer_name: str
@@ -426,6 +462,17 @@ class WorkflowService:
             target_role="REVENUE_OFFICER",
         )
 
+        revenue_callback_service.send_status_update_async(
+            application_id=application_id,
+            status="ACTION_REQUIRED",
+            correlation_id=corr_id,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            remarks=req_action_desc,
+            request_hash=app.get("data_payload", {}).get("canonical_hash"),
+            document_hash=app.get("data_payload", {}).get("document_hash"),
+        )
+
         logger.info("Information requested for '%s' by %s: %s", application_id, officer_name, req_action_desc)
         return updated_app or self.app_repo.get_by_application_id(application_id)
 
@@ -511,6 +558,17 @@ class WorkflowService:
             target_role="REVENUE_OFFICER",
         )
 
+        revenue_callback_service.send_status_update_async(
+            application_id=application_id,
+            status="PROCESSING",
+            correlation_id=corr_id,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            remarks="Reprocessing following supplementary document submission",
+            request_hash=app.get("data_payload", {}).get("canonical_hash"),
+            document_hash=app.get("data_payload", {}).get("document_hash"),
+        )
+
         logger.info("Application '%s' REPROCESSED back to PROCESSING by %s", application_id, officer_name)
         return updated_app or self.app_repo.get_by_application_id(application_id)
 
@@ -593,6 +651,18 @@ class WorkflowService:
             target_role="REVENUE_OFFICER",
         )
 
+        revenue_callback_service.send_status_update_async(
+            application_id=application_id,
+            status=target_status,
+            correlation_id=corr_id,
+            officer_id=officer_id,
+            officer_name=officer_name,
+            remarks="Operational retry initiated",
+            request_hash=app.get("data_payload", {}).get("canonical_hash"),
+            document_hash=app.get("data_payload", {}).get("document_hash"),
+        )
+
         logger.info("Application '%s' RETRIED to %s by %s", application_id, target_status, officer_name)
         return updated_app or self.app_repo.get_by_application_id(application_id)
+
 

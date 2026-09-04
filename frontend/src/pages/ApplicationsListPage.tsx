@@ -284,7 +284,14 @@ export const ApplicationsListPage: React.FC = () => {
                     className="hover:bg-slate-50/80 transition-colors"
                   >
                     <td className="py-3.5 px-4 font-mono font-bold text-gov-navy">
-                      {app.application_id}
+                      <div className="flex items-center gap-1.5">
+                        <span>{app.application_id}</span>
+                        {app.application_id.startsWith('GM-') && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            GovMesh
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
                       {app.citizen_name}

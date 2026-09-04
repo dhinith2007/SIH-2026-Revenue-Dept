@@ -28,6 +28,7 @@ export interface ProofDocument {
   file_size?: string;
   extracted_name?: string;
   extracted_address?: string;
+  document_hash?: string;
 }
 
 export interface WorkflowTimelineEvent {
@@ -44,7 +45,15 @@ export interface ApplicationDataPayload {
   new_address: AddressDetail;
   proof_documents: ProofDocument[];
   remarks?: string;
+  canonical_hash?: string;
+  document_hash?: string;
+  created_at?: string;
+  sent_at?: string;
+  received_at?: string;
+  consent_id?: string;
+  consent_record?: any;
 }
+
 
 export interface ApplicationSummary {
   id: string;
@@ -252,12 +261,14 @@ export interface ProofDocumentMetadata {
   document_type: string;
   mime_type: string;
   file_size: string;
+  document_hash?: string;
   upload_date?: string;
   verification_status: string;
   extracted_name?: string;
   extracted_address?: string;
   verification_result?: DocumentVerificationResult;
 }
+
 
 export interface DocumentUploadResponse {
   document_id: string;

@@ -17,6 +17,12 @@ def clean_test_user():
                 user.failed_login_attempts = 0
                 user.locked_until = None
                 db.commit()
+    else:
+        from app.repositories.user_repository import _MEM_USERS
+        for u in _MEM_USERS.values():
+            if u.get("username") == "revenue.officer":
+                u["failed_login_attempts"] = 0
+                u["locked_until"] = None
     yield
     reset_rate_limiter()
     if is_db_available():
@@ -26,6 +32,12 @@ def clean_test_user():
                 user.failed_login_attempts = 0
                 user.locked_until = None
                 db.commit()
+    else:
+        from app.repositories.user_repository import _MEM_USERS
+        for u in _MEM_USERS.values():
+            if u.get("username") == "revenue.officer":
+                u["failed_login_attempts"] = 0
+                u["locked_until"] = None
 
 
 # ==============================================================================
@@ -132,6 +144,11 @@ def test_05_lock_expiration_allows_authentication(client):
             user = db.query(User).filter(User.username == "revenue.officer").first()
             user.locked_until = past_time.replace(tzinfo=None)
             db.commit()
+    else:
+        from app.repositories.user_repository import _MEM_USERS
+        for u in _MEM_USERS.values():
+            if u.get("username") == "revenue.officer":
+                u["locked_until"] = past_time
 
     # Reset client IP rate limiter so we test post-lockout login
     reset_rate_limiter()
