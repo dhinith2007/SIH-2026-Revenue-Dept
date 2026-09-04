@@ -4,23 +4,23 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "https://sih-2026-revenue-dept.onrender.com/api/$1"
     },
     {
       "source": "/health(.*)",
-      "destination": "/api/index.py"
+      "destination": "https://sih-2026-revenue-dept.onrender.com/health$1"
     },
     {
       "source": "/revenue/(.*)",
-      "destination": "/api/index.py"
+      "destination": "https://sih-2026-revenue-dept.onrender.com/revenue/$1"
     },
     {
       "source": "/docs(.*)",
-      "destination": "/api/index.py"
+      "destination": "https://sih-2026-revenue-dept.onrender.com/docs$1"
     },
     {
       "source": "/openapi.json",
-      "destination": "/api/index.py"
+      "destination": "https://sih-2026-revenue-dept.onrender.com/openapi.json"
     },
     {
       "source": "/(.*)",
