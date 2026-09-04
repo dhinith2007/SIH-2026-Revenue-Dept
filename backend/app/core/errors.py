@@ -355,6 +355,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        from fastapi.encoders import jsonable_encoder
         corr_id = _get_correlation_id(request)
         logger.warning("Validation error on %s: %s", request.url.path, exc.errors())
         return JSONResponse(
@@ -365,7 +366,7 @@ def register_error_handlers(app: FastAPI) -> None:
                     "code": "VALIDATION_ERROR",
                     "message": "Invalid request payload or query parameters",
                     "correlationId": corr_id,
-                    "details": exc.errors(),
+                    "details": jsonable_encoder(exc.errors()),
                 },
             },
         )

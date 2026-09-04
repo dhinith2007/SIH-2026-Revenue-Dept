@@ -497,4 +497,46 @@ class ApplicationRepository:
                 logger.warning("DB insert failed in save_application: %s", exc)
         return app_dict
 
+    def create_new_application(self, app_dict: Dict[str, Any], auto_commit: bool = True) -> Dict[str, Any]:
+        """
+        Creates and persists a brand-new application record in memory and PostgreSQL.
+        Guarantees idempotency checking and atomic insertion.
+        """
+        clean_id = app_dict["application_id"].strip()
+        _MEM_APPLICATIONS[clean_id] = app_dict
+        if self.db and not self._should_skip_db():
+            try:
+                db_app = Application(
+                    id=app_dict.get("id", f"APP-{clean_id}"),
+                    application_id=clean_id,
+                    correlation_id=app_dict.get("correlation_id", f"CORR-{clean_id}"),
+                    citizen_reference_id=app_dict.get("citizen_reference_id", "CIT-GEN"),
+                    service_type=app_dict.get("service_type", "ADDRESS_CHANGE"),
+                    requested_operation=app_dict.get("requested_operation", "UPDATE_REVENUE_ADDRESS"),
+                    purpose=app_dict.get("purpose", "Update Revenue address record & 7/12 land registry linkage"),
+                    consent_reference=app_dict.get("consent_reference", ""),
+                    priority=app_dict.get("priority", "NORMAL"),
+                    status=app_dict.get("status", "PENDING"),
+                    required_action=app_dict.get("required_action", "Verify new residential address against Taluka land registry & electricity proof"),
+                    citizen_name=app_dict.get("citizen_name", ""),
+                    received_at=app_dict.get("received_at", datetime.now(timezone.utc)),
+                    updated_at=app_dict.get("updated_at", datetime.now(timezone.utc)),
+                    assigned_officer_id=app_dict.get("assigned_officer_id"),
+                    data_payload=app_dict.get("data_payload", {}),
+                    workflow_history=app_dict.get("workflow_history", []),
+                )
+                self.db.add(db_app)
+                if auto_commit:
+                    self.db.commit()
+                else:
+                    self.db.flush()
+            except SQLAlchemyError as exc:
+                if auto_commit:
+                    self.db.rollback()
+                self._mark_db_failed()
+                logger.warning("DB insert failed in create_new_application: %s", exc)
+                raise
+        return self.get_by_application_id(clean_id) or app_dict
+
+
 

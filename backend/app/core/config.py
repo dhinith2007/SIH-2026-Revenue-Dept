@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = int(os.getenv("PORT", "8000"))
     FRONTEND_PORT: int = 5173
 
+    # Phase 13: Cross-Department Integration Configuration
+    GOVMESH_API_KEY: str = "dev-govmesh-api-key-sih26129-integration-secret"
+    SUPPORTED_INTEGRATION_VERSIONS: List[str] = ["1.0"]
+
     # JWT & Session Configuration
     JWT_SECRET: str = "dev-revenue-department-secret-key-sih26129-do-not-use-in-prod-32bytes"
     JWT_ALGORITHM: str = "HS256"

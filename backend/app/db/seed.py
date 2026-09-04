@@ -195,6 +195,17 @@ def seed_database(db: Optional[Session] = None, refresh_apps: bool = False) -> D
         # 2. Seed Synthetic Applications
         # --------------------------------------------------------------------
         synthetic_apps = get_seeded_applications()
+        seeded_ids = [a["application_id"] for a in synthetic_apps]
+        if refresh_apps:
+            try:
+                db.query(Application).filter(~Application.application_id.in_(seeded_ids)).delete(synchronize_session=False)
+                from app.repositories.application_repository import _MEM_APPLICATIONS
+                non_seeded = [k for k in list(_MEM_APPLICATIONS.keys()) if k not in seeded_ids]
+                for k in non_seeded:
+                    _MEM_APPLICATIONS.pop(k, None)
+            except Exception as e:
+                logger.warning("Could not purge non-seeded applications during refresh: %s", e)
+
         for a in synthetic_apps:
             payload = dict(a.get("data_payload", {}))
             if "consent_record" in a and "consent_record" not in payload:
