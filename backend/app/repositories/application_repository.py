@@ -321,48 +321,48 @@ class ApplicationRepository:
 
     @staticmethod
     def _to_summary_dict(app: Dict[str, Any]) -> Dict[str, Any]:
-        data = app.get("data_payload", {})
-        new_addr = data.get("new_address", {})
+        data = app.get("data_payload", {}) or {}
+        new_addr = data.get("new_address", {}) if isinstance(data, dict) else {}
         return {
             "id": app.get("id", ""),
             "application_id": app.get("application_id", ""),
             "correlation_id": app.get("correlation_id", ""),
-            "citizen_reference_id": app.get("citizen_reference_id", ""),
-            "citizen_name": app.get("citizen_name", ""),
+            "citizen_reference_id": app.get("citizen_reference_id", "CIT-GEN"),
+            "citizen_name": app.get("citizen_name", "Citizen"),
             "service_type": app.get("service_type", "ADDRESS_CHANGE"),
             "requested_operation": app.get("requested_operation", "UPDATE_REVENUE_ADDRESS"),
             "priority": app.get("priority", "NORMAL"),
             "status": app.get("status", "PENDING"),
             "required_action": app.get("required_action", ""),
-            "received_at": app.get("received_at"),
-            "taluka": new_addr.get("taluka", "Haveli"),
-            "district": new_addr.get("district", "Pune"),
+            "received_at": app.get("received_at") or datetime.now(timezone.utc),
+            "taluka": (new_addr.get("taluka") if isinstance(new_addr, dict) else None) or "Haveli",
+            "district": (new_addr.get("district") if isinstance(new_addr, dict) else None) or "Pune",
         }
 
     @staticmethod
     def _to_dict(app: Application) -> Dict[str, Any]:
-        payload = dict(app.data_payload or {})
+        payload = dict(app.data_payload or {}) if app.data_payload else {}
         c_record = payload.get("consent_record")
         return {
-            "id": app.id,
+            "id": app.id or f"APP-{app.application_id}",
             "application_id": app.application_id,
-            "correlation_id": app.correlation_id,
-            "citizen_reference_id": app.citizen_reference_id,
-            "service_type": app.service_type,
-            "requested_operation": app.requested_operation,
-            "purpose": app.purpose,
-            "consent_reference": app.consent_reference,
-            "priority": app.priority,
-            "status": app.status,
-            "required_action": app.required_action,
-            "citizen_name": app.citizen_name,
-            "received_at": app.received_at,
-            "updated_at": app.updated_at,
+            "correlation_id": app.correlation_id or f"CORR-{app.application_id}",
+            "citizen_reference_id": app.citizen_reference_id or "CIT-GEN",
+            "service_type": app.service_type or "ADDRESS_CHANGE",
+            "requested_operation": app.requested_operation or "UPDATE_REVENUE_ADDRESS",
+            "purpose": app.purpose or "Change of Residence / Address Updation",
+            "consent_reference": app.consent_reference or "",
+            "priority": app.priority or "NORMAL",
+            "status": app.status or "PENDING",
+            "required_action": app.required_action or "",
+            "citizen_name": app.citizen_name or "Citizen",
+            "received_at": app.received_at or datetime.now(timezone.utc),
+            "updated_at": app.updated_at or datetime.now(timezone.utc),
             "processing_started_at": app.processing_started_at,
             "completed_at": app.completed_at,
             "assigned_officer_id": app.assigned_officer_id,
             "data_payload": payload,
-            "workflow_history": app.workflow_history,
+            "workflow_history": app.workflow_history or [],
             "consent_record": c_record,
         }
 
