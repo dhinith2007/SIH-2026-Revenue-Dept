@@ -28,7 +28,6 @@ export const ApplicationsListPage: React.FC = () => {
     total_pages: 1,
   });
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filter & Search states initialized from URL search params if present
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -38,12 +37,8 @@ export const ApplicationsListPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const fetchApplications = async (page = currentPage, isBackground = false) => {
-    if (!isBackground) {
-      setLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
+  const fetchApplications = async (page = currentPage) => {
+    setLoading(true);
     try {
       const data = await apiService.getApplications({
         page,
@@ -54,32 +49,21 @@ export const ApplicationsListPage: React.FC = () => {
         sort_by: sortBy,
         sort_order: sortOrder,
       });
-      if (data && data.items) {
-        setApplications(data.items);
-        setPagination(data.pagination);
-        setCurrentPage(data.pagination.page);
-      }
-    } catch (error) {
-      console.warn('Failed to fetch applications:', error);
+      setApplications(data.items);
+      setPagination(data.pagination);
+      setCurrentPage(data.pagination.page);
     } finally {
-      if (!isBackground) {
-        setLoading(false);
-      }
-      setIsRefreshing(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchApplications(1, false);
-    const interval = setInterval(() => {
-      fetchApplications(currentPage, true);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [statusFilter, priorityFilter, sortBy, sortOrder, currentPage]);
+    fetchApplications(1);
+  }, [statusFilter, priorityFilter, sortBy, sortOrder]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchApplications(1, false);
+    fetchApplications(1);
   };
 
   const handleClearFilters = () => {
@@ -91,7 +75,7 @@ export const ApplicationsListPage: React.FC = () => {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.total_pages) {
-      fetchApplications(newPage, false);
+      fetchApplications(newPage);
     }
   };
 
@@ -110,11 +94,11 @@ export const ApplicationsListPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchApplications(currentPage, true)}
-            disabled={loading || isRefreshing}
+            onClick={() => fetchApplications(currentPage)}
+            disabled={loading}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded shadow-sm transition-colors"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading || isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh Queue</span>
           </button>
         </div>
@@ -300,14 +284,7 @@ export const ApplicationsListPage: React.FC = () => {
                     className="hover:bg-slate-50/80 transition-colors"
                   >
                     <td className="py-3.5 px-4 font-mono font-bold text-gov-navy">
-                      <div className="flex items-center gap-1.5">
-                        <span>{app.application_id}</span>
-                        {app.application_id.startsWith('GM-') && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            GovMesh
-                          </span>
-                        )}
-                      </div>
+                      {app.application_id}
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
                       {app.citizen_name}

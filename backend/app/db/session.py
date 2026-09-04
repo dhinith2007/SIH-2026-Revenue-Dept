@@ -20,16 +20,7 @@ def is_db_available() -> bool:
         _DB_AVAILABLE = False
         _LAST_DB_CHECK = now
         return False
-    if _DB_AVAILABLE is None:
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            _DB_AVAILABLE = True
-        except Exception:
-            _DB_AVAILABLE = False
-            _LAST_DB_CHECK = now
-            return False
-    return _DB_AVAILABLE
+    return True
 
 def mark_db_unavailable():
     global _DB_AVAILABLE, _LAST_DB_CHECK
@@ -75,15 +66,12 @@ def init_db() -> None:
         logger.warning("Could not automatically initialize DB tables, falling back to memory store: %s", exc)
 
 
-def get_db() -> Generator[Optional[Session], None, None]:
+def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency for obtaining a database session.
 
     Explicitly rolls back any uncommitted work before closing the session
     so that failed requests never leave the connection in a dirty state.
     """
-    if not is_db_available():
-        yield None
-        return
     db = SessionLocal()
     try:
         yield db
@@ -92,7 +80,6 @@ def get_db() -> Generator[Optional[Session], None, None]:
         raise
     finally:
         db.close()
-
 
 
 def check_database_health() -> Dict[str, Any]:
