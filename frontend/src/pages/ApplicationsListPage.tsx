@@ -59,7 +59,11 @@ export const ApplicationsListPage: React.FC = () => {
 
   useEffect(() => {
     fetchApplications(1);
-  }, [statusFilter, priorityFilter, sortBy, sortOrder]);
+    const interval = setInterval(() => {
+      fetchApplications(currentPage);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [statusFilter, priorityFilter, sortBy, sortOrder, currentPage]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -31,6 +31,7 @@ from app.api.deps import (
     get_consent_repository,
     get_workflow_service,
     get_current_user,
+    get_govmesh_or_authenticated_user,
     require_permission,
 )
 from app.core.permissions import PermissionEnum
@@ -58,14 +59,27 @@ router = APIRouter()
     summary="GovMesh Interoperability Address Update Ingress",
     description="Dedicated receiving endpoint for GovMesh multi-department address update interoperability.",
 )
+@router.post(
+    "/integrations/applications",
+    response_model=BaseResponse[AddressVerificationResponse],
+    status_code=status.HTTP_200_OK,
+    summary="GovMesh Integrations Ingest Endpoint",
+)
+@router.post(
+    "/revenue/applications/ingest",
+    response_model=BaseResponse[AddressVerificationResponse],
+    status_code=status.HTTP_200_OK,
+    summary="GovMesh Applications Ingest Endpoint",
+)
 async def verify_address(
     request: Request,
     payload: Dict[str, Any] = Body(..., example={"application_id": "GM-2026-000124"}),
     app_repo: ApplicationRepository = Depends(get_application_repository),
     consent_repo: ConsentRepository = Depends(get_consent_repository),
     audit_repo: AuditRepository = Depends(get_audit_repository),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_govmesh_or_authenticated_user),
 ):
+
     received_at_dt = datetime.now(timezone.utc)
     received_at_str = received_at_dt.isoformat()
 
