@@ -74,7 +74,7 @@ class ApplicationSummary(BaseModel):
     priority: Optional[str] = "NORMAL"
     status: str
     required_action: Optional[str] = ""
-    received_at: Optional[datetime] = None
+    received_at: Optional[Union[datetime, str]] = None
     taluka: Optional[str] = "Haveli"
     district: Optional[str] = "Pune"
 
@@ -92,10 +92,10 @@ class ApplicationDetail(BaseModel):
     status: str
     required_action: Optional[str] = ""
     citizen_name: str
-    received_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    processing_started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    received_at: Optional[Union[datetime, str]] = None
+    updated_at: Optional[Union[datetime, str]] = None
+    processing_started_at: Optional[Union[datetime, str]] = None
+    completed_at: Optional[Union[datetime, str]] = None
     assigned_officer_id: Optional[str] = None
     data_payload: Optional[Dict[str, Any]] = {}
     workflow_history: Optional[List[Dict[str, Any]]] = []
