@@ -77,6 +77,16 @@ def get_analytics_service(
     return AnalyticsService(app_repo, evidence_repo, audit_repo)
 
 
+def get_integration_service(
+    app_repo: ApplicationRepository = Depends(get_application_repository),
+    consent_repo: ConsentRepository = Depends(get_consent_repository),
+    audit_repo: AuditRepository = Depends(get_audit_repository),
+    notif_repo: NotificationRepository = Depends(get_notification_repository),
+):
+    from app.services.integration_service import IntegrationService
+    return IntegrationService(app_repo, consent_repo, audit_repo, notif_repo)
+
+
 def get_current_user(
     auth_header: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     user_repo: UserRepository = Depends(get_user_repository),

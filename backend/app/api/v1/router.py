@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, applications, auth, admin, revenue_workflow, notifications, documents, analytics
+from app.api.v1.endpoints import health, applications, auth, admin, revenue_workflow, notifications, documents, analytics, integrations
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(revenue_workflow.router, tags=["Revenue Address Verifi
 api_router.include_router(notifications.router, tags=["Departmental Notifications"])
 api_router.include_router(documents.router, tags=["Proof Documents & OCR Verification"])
 api_router.include_router(analytics.router, tags=["Revenue Department Analytics & Operational Dashboard"])
+api_router.include_router(integrations.router, tags=["Cross-Department Integrations"])

@@ -288,6 +288,110 @@ Required (`Bearer <token>`)
 
 ## 4. APPLICATION INGESTION & OPERATIONAL QUEUE ENDPOINTS
 
+### POST `/api/v1/integrations/applications` (Alias: `/api/v1/revenue/applications/ingest`)
+#### Description
+Primary cross-department integration contract endpoint for GovMesh and external departmental microservices to submit NEW citizen address mutation applications into the Revenue Department. Enforces service authentication, contract version validation (`request_version: "1.0"`), idempotency duplicate prevention, and atomic multi-entity persistence (Application + Consent + Status History + Audit Trail + Departmental Alert).
+#### Authentication
+Required (`X-GovMesh-API-Key: <key>` or `X-API-Key: <key>` or `Authorization: Bearer <token>`)
+#### Role / Permission
+Authorized Integration Peer (`GOVMESH_GATEWAY` or `DEPARTMENT_ADMINISTRATOR`)
+#### Request Headers
+- `X-GovMesh-API-Key`: Pre-shared integration secret key (configured in environment).
+- `Content-Type`: `application/json`
+#### Request Body
+```json
+{
+  "application_id": "GM-2026-000201",
+  "correlation_id": "CORR-2026-000201",
+  "request_version": "1.0",
+  "source_department": "GOVMESH",
+  "service_type": "ADDRESS_CHANGE",
+  "priority": "NORMAL",
+  "submitted_at": "2026-09-04T10:00:00Z",
+  "citizen": {
+    "name": "Pooja Suresh Sharma",
+    "identifier": "CIT-MH-200201",
+    "contact": {
+      "phone": "9819922334",
+      "email": "pooja.sharma@example.gov.in"
+    }
+  },
+  "application_data": {
+    "existing_address": {
+      "house_no": "12/A, Gokuldham",
+      "street": "FC Road",
+      "village": "Shivajinagar",
+      "taluka": "Haveli",
+      "district": "Pune",
+      "pincode": "411005"
+    },
+    "new_address": {
+      "house_no": "B-304, Green Acres",
+      "street": "Baner-Pashan Link Road",
+      "village": "Baner",
+      "taluka": "Haveli",
+      "district": "Pune",
+      "pincode": "411045"
+    },
+    "proof_documents": [
+      {
+        "document_id": "DOC-GM-200201",
+        "document_type": "ELECTRICITY_BILL",
+        "document_name": "MSEDCL_Bill_Aug2026.pdf",
+        "upload_date": "2026-09-04T09:45:00Z",
+        "verification_status": "VALIDATED",
+        "file_size": "1.1 MB",
+        "document_hash": "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
+      }
+    ],
+    "remarks": "Change of residence following property acquisition."
+  },
+  "consent": {
+    "consent_reference": "CONSENT-2026-000201",
+    "purpose": "Update Revenue address record & 7/12 land registry linkage",
+    "data_scope": "address.change",
+    "recipient": "Revenue & Forest Department",
+    "granted": true,
+    "issued_at": "2026-09-04T09:40:00Z",
+    "expires_at": "2027-09-04T09:40:00Z"
+  },
+  "integrity": {
+    "canonical_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "document_hash": "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
+  }
+}
+```
+#### Success Response (201 Created)
+```json
+{
+  "success": true,
+  "status": "RECEIVED",
+  "application_id": "GM-2026-000201",
+  "correlation_id": "CORR-2026-000201",
+  "message": "Application successfully received by Revenue Department",
+  "received_at": "2026-09-04T10:00:00Z"
+}
+```
+#### Idempotent Duplicate Response (200 OK)
+```json
+{
+  "success": true,
+  "status": "ALREADY_RECEIVED",
+  "application_id": "GM-2026-000201",
+  "correlation_id": "CORR-2026-000201",
+  "message": "Application was already received",
+  "received_at": "2026-09-04T10:00:00Z"
+}
+```
+#### Error Codes
+- `400 Bad Request`: `UNSUPPORTED_CONTRACT_VERSION` (unsupported request_version)
+- `401 Unauthorized`: `AUTHENTICATION_REQUIRED` (missing or invalid integration API key)
+- `409 Conflict`: `APPLICATION_ID_CONFLICT` (application ID exists with conflicting identity)
+- `422 Unprocessable Content`: `VALIDATION_ERROR` (missing mandatory fields or invalid PIN code)
+- `500 Internal Server Error`: `PERSISTENCE_ERROR` (database atomic commit failure)
+
+---
+
 ### GET `/api/v1/revenue/dashboard/summary`
 #### Description
 Returns aggregated counters for the scrutiny desk: total incoming, pending, processing, verified, rejected, action-required cases, and system connectivity metrics.
@@ -297,6 +401,7 @@ Required (`Bearer <token>`)
 ---
 
 ### GET `/api/v1/revenue/applications`
+
 #### Description
 Retrieves a paginated list of applications with comprehensive search, multi-field filtering, and sorting.
 #### Authentication
@@ -566,6 +671,8 @@ All tests verified against deployed production backend: `https://sih-2026-revenu
 | GET | `/api/v1/revenue/applications/rejected` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/applications/rejected` | 200 | ✓ WORKING |
 | GET | `/api/v1/revenue/applications/action-required` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/applications/action-required` | 200 | ✓ WORKING |
 | GET | `/api/v1/revenue/applications/{id}` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/applications/GM-2026-000124` | 200 | ✓ WORKING |
+| POST | `/api/v1/integrations/applications` | `https://sih-2026-revenue-dept.onrender.com/api/v1/integrations/applications` | 201 (401 unauth) | ✓ WORKING (Phase 13 Contract) |
+| POST | `/api/v1/revenue/applications/ingest` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/applications/ingest` | 201 (401 unauth) | ✓ WORKING (Phase 13 Alias) |
 | POST | `/api/v1/revenue/address/verify` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/address/verify` | 200 | ✓ WORKING |
 | POST | `/api/v1/revenue/application/{id}/start-review` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/application/GM-2026-000124/start-review` | 200 | ✓ WORKING |
 | POST | `/api/v1/revenue/application/{id}/validate-consent` | `https://sih-2026-revenue-dept.onrender.com/api/v1/revenue/application/GM-2026-000124/validate-consent` | 200 | ✓ WORKING |
