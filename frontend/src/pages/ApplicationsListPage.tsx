@@ -28,6 +28,7 @@ export const ApplicationsListPage: React.FC = () => {
     total_pages: 1,
   });
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filter & Search states initialized from URL search params if present
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -37,8 +38,12 @@ export const ApplicationsListPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const fetchApplications = async (page = currentPage) => {
-    setLoading(true);
+  const fetchApplications = async (page = currentPage, isBackground = false) => {
+    if (!isBackground) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
     try {
       const data = await apiService.getApplications({
         page,
@@ -49,17 +54,26 @@ export const ApplicationsListPage: React.FC = () => {
         sort_by: sortBy,
         sort_order: sortOrder,
       });
-      setApplications(data.items);
-      setPagination(data.pagination);
-      setCurrentPage(data.pagination.page);
+      if (data && data.items) {
+        setApplications(data.items);
+        setPagination(data.pagination);
+        setCurrentPage(data.pagination.page);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch applications:', error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchApplications(1);
-  }, [statusFilter, priorityFilter, sortBy, sortOrder]);
+    fetchApplications(1, false);
+    const interval = setInterval(() => {
+      fetchApplications(currentPage, true);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [statusFilter, priorityFilter, sortBy, sortOrder, currentPage]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,11 +108,11 @@ export const ApplicationsListPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchApplications(currentPage)}
-            disabled={loading}
+            onClick={() => fetchApplications(currentPage, true)}
+            disabled={loading || isRefreshing}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded shadow-sm transition-colors"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading || isRefreshing ? 'animate-spin' : ''}`} />
             <span>Refresh Queue</span>
           </button>
         </div>
