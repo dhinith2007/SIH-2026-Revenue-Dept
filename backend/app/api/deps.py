@@ -117,30 +117,10 @@ def get_current_user(
     if not user.get("is_active", False):
         raise InactiveAccountError()
 
-def get_govmesh_or_authenticated_user(
-    auth_header: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
-    x_govmesh_api_key: Optional[str] = Header(None, alias="X-GovMesh-API-Key"),
-    user_repo: UserRepository = Depends(get_user_repository),
-) -> Dict[str, Any]:
-    """
-    Authenticates requests via either Bearer JWT or service-level X-GovMesh-API-Key header.
-    """
-    import os
-    valid_keys = {"govmesh-live-secure-key-2026", "gm-secret-key-2026-interop", os.getenv("GOVMESH_API_KEY", "")}
-    if x_govmesh_api_key and x_govmesh_api_key.strip() in valid_keys:
-        return {
-            "id": "usr-govmesh-gateway",
-            "username": "govmesh_core_gateway",
-            "role": "SYSTEM_SERVICE",
-            "full_name": "GovMesh Core Interoperability Gateway",
-            "is_active": True,
-        }
-
-    return get_current_user(auth_header, user_repo)
+    return user
 
 
 def require_role(*allowed_roles: RoleEnum) -> Callable:
-
     """
     FastAPI dependency factory to enforce specific departmental roles.
     """

@@ -67,38 +67,38 @@ class ApplicationSummary(BaseModel):
     id: str
     application_id: str
     correlation_id: str
-    citizen_reference_id: Optional[str] = "CIT-GEN"
+    citizen_reference_id: str
     citizen_name: str
-    service_type: Optional[str] = "ADDRESS_CHANGE"
-    requested_operation: Optional[str] = "UPDATE_REVENUE_ADDRESS"
-    priority: Optional[str] = "NORMAL"
+    service_type: str
+    requested_operation: str
+    priority: str
     status: str
-    required_action: Optional[str] = ""
-    received_at: Optional[datetime] = None
-    taluka: Optional[str] = "Haveli"
-    district: Optional[str] = "Pune"
+    required_action: str
+    received_at: datetime
+    taluka: str
+    district: str
 
 
 class ApplicationDetail(BaseModel):
     id: str
     application_id: str
     correlation_id: str
-    citizen_reference_id: Optional[str] = "CIT-GEN"
-    service_type: Optional[str] = "ADDRESS_CHANGE"
-    requested_operation: Optional[str] = "UPDATE_REVENUE_ADDRESS"
-    purpose: Optional[str] = "Change of Residence / Address Updation"
-    consent_reference: Optional[str] = ""
-    priority: Optional[str] = "NORMAL"
+    citizen_reference_id: str
+    service_type: str
+    requested_operation: str
+    purpose: str
+    consent_reference: str
+    priority: str
     status: str
-    required_action: Optional[str] = ""
+    required_action: str
     citizen_name: str
-    received_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    received_at: datetime
+    updated_at: datetime
     processing_started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     assigned_officer_id: Optional[str] = None
-    data_payload: Optional[Dict[str, Any]] = {}
-    workflow_history: Optional[List[Dict[str, Any]]] = []
+    data_payload: Dict[str, Any]
+    workflow_history: List[Dict[str, Any]]
 
 
 class PaginationMetadata(BaseModel):

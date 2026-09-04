@@ -92,18 +92,15 @@ DEMO_USERS: List[Dict[str, Any]] = [
 ]
 
 
-import copy
-
 def get_seeded_users_with_hashes() -> List[Dict[str, Any]]:
     """Returns demo users with pre-computed password hashes."""
     seeded = []
     for user_data in DEMO_USERS:
-        u = copy.deepcopy(user_data)
+        u = user_data.copy()
         plain_pw = u.pop("plain_password")
         u["password_hash"] = hash_password(plain_pw)
         seeded.append(u)
     return seeded
-
 
 
 def _make_json_safe(val: Any) -> Any:
