@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 import time
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.application import Application
@@ -203,10 +204,11 @@ class ApplicationRepository:
 
                 total = query.count()
                 sort_col = getattr(Application, clean_sort_by, Application.received_at)
+                is_demo_124 = case((Application.application_id == "GM-2026-000124", 0), else_=1).asc()
                 if sort_order.lower() == "asc":
-                    query = query.order_by((Application.application_id != "GM-2026-000124"), sort_col.asc())
+                    query = query.order_by(is_demo_124, sort_col.asc())
                 else:
-                    query = query.order_by((Application.application_id != "GM-2026-000124"), sort_col.desc())
+                    query = query.order_by(is_demo_124, sort_col.desc())
 
                 offset = (page - 1) * page_size
                 db_results = query.offset(offset).limit(page_size).all()
