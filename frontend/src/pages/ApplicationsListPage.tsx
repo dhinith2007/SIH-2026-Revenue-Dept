@@ -292,48 +292,62 @@ export const ApplicationsListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {applications.map((app) => (
-                  <tr
-                    key={app.application_id}
-                    className="hover:bg-slate-50/80 transition-colors"
-                  >
-                    <td className="py-3.5 px-4 font-mono font-bold text-gov-navy">
-                      {app.application_id}
-                    </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">
-                      {app.citizen_name}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-700">
-                      {app.service_type.replace(/_/g, ' ')}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600">
-                      <div>
-                        {app.taluka}, {app.district}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
-                      {new Date(app.received_at).toLocaleString('en-IN', {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <PriorityBadge priority={app.priority} size="sm" />
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <StatusBadge status={app.status} size="sm" />
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => navigate(`/applications/${app.application_id}`)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-gov-navy hover:bg-gov-navy-light text-white text-xs font-semibold rounded transition-colors shadow-2xs"
-                      >
-                        <span>Inspect</span>
-                        <ExternalLink className="w-3 h-3 text-gov-gold" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {applications.map((app) => {
+                  const isDemo124 = app.application_id === 'GM-2026-000124';
+                  return (
+                    <tr
+                      key={app.application_id}
+                      className={`transition-colors ${
+                        isDemo124
+                          ? 'bg-amber-50/70 hover:bg-amber-100/60 border-l-4 border-l-amber-500'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-3.5 px-4">
+                        <div className="font-mono font-bold text-gov-navy flex items-center gap-1.5">
+                          <span>{app.application_id}</span>
+                        </div>
+                        {isDemo124 && (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[9px] uppercase tracking-wide">
+                            GovMesh Demo — Recently Received
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900">
+                        {app.citizen_name}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700">
+                        {app.service_type.replace(/_/g, ' ')}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">
+                        <div>
+                          {app.taluka}, {app.district}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
+                        {new Date(app.received_at).toLocaleString('en-IN', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <PriorityBadge priority={app.priority} size="sm" />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <StatusBadge status={app.status} size="sm" />
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => navigate(`/applications/${app.application_id}`)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-gov-navy hover:bg-gov-navy-light text-white text-xs font-semibold rounded transition-colors shadow-2xs"
+                        >
+                          <span>Inspect</span>
+                          <ExternalLink className="w-3 h-3 text-gov-gold" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

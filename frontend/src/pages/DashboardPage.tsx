@@ -564,29 +564,47 @@ export const DashboardPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-200 font-medium">
               {recentApplications.length > 0 ? (
-                recentApplications.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50">
-                    <td className="px-3 py-2 font-mono font-bold text-gov-navy">{app.id}</td>
-                    <td className="px-3 py-2 text-slate-900">{app.citizen_name}</td>
-                    <td className="px-3 py-2">
-                      <StatusBadge status={app.status} />
-                    </td>
-                    <td className="px-3 py-2">
-                      <PriorityBadge priority={app.priority} />
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {new Date(app.received_at).toLocaleDateString('en-IN')}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => navigate(`/revenue/application/${app.id}`)}
-                        className="px-2.5 py-1 bg-gov-navy text-white text-[11px] font-bold rounded hover:bg-gov-navy-light transition-colors"
-                      >
-                        Verify Desk
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                recentApplications.map((app) => {
+                  const appId = app.application_id || app.id;
+                  const isDemo124 = appId === 'GM-2026-000124';
+                  return (
+                    <tr
+                      key={appId}
+                      className={`transition-colors ${
+                        isDemo124
+                          ? 'bg-amber-50/70 hover:bg-amber-100/60 border-l-4 border-l-amber-500'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <td className="px-3 py-2">
+                        <div className="font-mono font-bold text-gov-navy">{appId}</div>
+                        {isDemo124 && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[9px] uppercase tracking-wide">
+                            GovMesh Demo
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-slate-900 font-medium">{app.citizen_name}</td>
+                      <td className="px-3 py-2">
+                        <StatusBadge status={app.status} size="sm" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <PriorityBadge priority={app.priority} size="sm" />
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 font-mono text-[11px]">
+                        {new Date(app.received_at).toLocaleDateString('en-IN')}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => navigate(`/applications/${appId}`)}
+                          className="px-2.5 py-1 bg-gov-navy text-white text-[11px] font-bold rounded hover:bg-gov-navy-light transition-colors"
+                        >
+                          Verify Desk
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={6} className="px-3 py-4 text-center text-slate-400 italic">

@@ -204,9 +204,9 @@ class ApplicationRepository:
                 total = query.count()
                 sort_col = getattr(Application, clean_sort_by, Application.received_at)
                 if sort_order.lower() == "asc":
-                    query = query.order_by(sort_col.asc())
+                    query = query.order_by((Application.application_id != "GM-2026-000124"), sort_col.asc())
                 else:
-                    query = query.order_by(sort_col.desc())
+                    query = query.order_by((Application.application_id != "GM-2026-000124"), sort_col.desc())
 
                 offset = (page - 1) * page_size
                 db_results = query.offset(offset).limit(page_size).all()
@@ -251,7 +251,12 @@ class ApplicationRepository:
         elif clean_sort_by == "updated_at":
             filtered.sort(key=lambda x: x.get("updated_at") or datetime.min, reverse=reverse)
         else:
-            filtered.sort(key=lambda x: x.get("received_at") or datetime.min, reverse=reverse)
+            filtered.sort(
+                key=lambda x: (
+                    0 if x.get("application_id") == "GM-2026-000124" else 1,
+                    -(x.get("received_at") or datetime.min).timestamp() if reverse else (x.get("received_at") or datetime.min).timestamp(),
+                )
+            )
 
         total = len(filtered)
         total_pages = (total + page_size - 1) // page_size if total > 0 else 1
